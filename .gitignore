@@ -11,6 +11,11 @@ vendor/
 *.log
 *.sqlite
 
+# Next.js build
+.next/
+out/
+build/
+
 # IDE & OS
 .idea/
 .vscode/
