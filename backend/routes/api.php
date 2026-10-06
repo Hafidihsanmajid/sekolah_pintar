@@ -4,9 +4,11 @@ use App\Http\Controllers\Api\AcademicYearController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BillController;
 use App\Http\Controllers\Api\ClassroomController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\FeeCategoryController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PaymentMethodController;
+use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\StudentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -40,6 +42,9 @@ Route::prefix('auth')->group(function () {
 
 // Protected Core Application Routes
 Route::middleware(['auth:sanctum', 'role:super_admin|admin_tu|kepala_sekolah'])->group(function () {
+    // 0. Dashboard Summary
+    Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
+
     // 1. Master Data (Read)
     Route::get('/academic-years', [AcademicYearController::class, 'index']);
     Route::get('/academic-years/{academicYear}', [AcademicYearController::class, 'show']);
@@ -62,7 +67,14 @@ Route::middleware(['auth:sanctum', 'role:super_admin|admin_tu|kepala_sekolah'])-
     Route::get('/payments', [PaymentController::class, 'index']);
     Route::get('/payments/{payment}', [PaymentController::class, 'show']);
 
-    // 3. Mutasi Master Data (Super Admin & Admin TU)
+    // 3. Laporan Keuangan & Rekonsiliasi (Super Admin, Admin TU, Kepala Sekolah)
+    Route::prefix('reports')->group(function () {
+        Route::get('/daily-cash', [ReportController::class, 'dailyCash']);
+        Route::get('/arrears', [ReportController::class, 'arrears']);
+        Route::get('/reconciliation', [ReportController::class, 'reconciliation']);
+    });
+
+    // 4. Mutasi Master Data (Super Admin & Admin TU only)
     Route::middleware('role:super_admin|admin_tu')->group(function () {
         Route::post('/academic-years', [AcademicYearController::class, 'store']);
         Route::put('/academic-years/{academicYear}', [AcademicYearController::class, 'update']);
@@ -89,7 +101,7 @@ Route::middleware(['auth:sanctum', 'role:super_admin|admin_tu|kepala_sekolah'])-
         Route::post('/payments', [PaymentController::class, 'store']);
     });
 
-    // 4. Pembatalan Transaksi Void (Super Admin Only)
+    // 5. Pembatalan Transaksi Void (Super Admin Only)
     Route::middleware('role:super_admin')->group(function () {
         Route::post('/payments/{payment}/void', [PaymentController::class, 'void']);
     });

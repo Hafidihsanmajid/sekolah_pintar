@@ -1,8 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
+import { apiClient } from '@/lib/api-client';
+import { DashboardStats } from '@/types/api';
 import { StatCard } from '@/components/ui/StatCard';
 import { Button } from '@/components/ui/Button';
 import {
@@ -17,8 +19,41 @@ import {
 
 export default function DashboardPage() {
   const { user } = useAuth();
-
   const isReadOnly = user?.role === 'kepala_sekolah';
+
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const formatRupiah = (val: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      maximumFractionDigits: 0,
+    }).format(val);
+  };
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await apiClient.get<DashboardStats>('/dashboard/stats');
+        if (res.success && res.data) {
+          setStats(res.data);
+        }
+      } catch {
+        // Handled
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  // Compute 7-day total for header
+  const weekTotal = stats?.last7Days?.reduce((sum, d) => sum + d.total, 0) ?? 0;
+  const maxDayTotal = Math.max(
+    1,
+    ...(stats?.last7Days?.map((d) => Math.max(d.total, 1)) ?? [1])
+  );
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -33,7 +68,7 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {!isReadOnly ? (
+        {!isReadOnly && (
           <div className="flex items-center gap-2">
             <Link href="/transaksi/kasir">
               <Button variant="primary" size="sm">
@@ -42,35 +77,35 @@ export default function DashboardPage() {
               </Button>
             </Link>
           </div>
-        ) : null}
+        )}
       </div>
 
       {/* KPI Widgets */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Penerimaan Hari Ini"
-          value="Rp 4.250.000"
-          subtitle="18 transaksi tercatat"
-          trend={{ value: "+12%", isPositive: true }}
+          value={isLoading ? 'Memuat...' : formatRupiah(stats?.today.total ?? 0)}
+          subtitle={`${stats?.today.count ?? 0} transaksi tercatat`}
+          trend={{ value: "+100%", isPositive: true }}
           icon={<CreditCard className="w-4 h-4 text-emerald-600" />}
         />
         <StatCard
           title="Kas Tunai (Hari Ini)"
-          value="Rp 2.750.000"
+          value={isLoading ? 'Memuat...' : formatRupiah(stats?.today.cash ?? 0)}
           subtitle="Uang fisik siap setor TU"
           icon={<Receipt className="w-4 h-4 text-emerald-600" />}
         />
         <StatCard
           title="Transfer Bank (Hari Ini)"
-          value="Rp 1.500.000"
+          value={isLoading ? 'Memuat...' : formatRupiah(stats?.today.transfer ?? 0)}
           subtitle="Mutasi rekening terverifikasi"
           icon={<TrendingUp className="w-4 h-4 text-blue-600" />}
         />
         <StatCard
           title="Tunggakan Berjalan"
-          value="Rp 12.800.000"
-          subtitle="32 siswa belum melunasi SPP"
-          trend={{ value: "-5%", isPositive: false }}
+          value={isLoading ? 'Memuat...' : formatRupiah(stats?.arrears.total ?? 0)}
+          subtitle={`${stats?.arrears.studentsCount ?? 0} siswa belum lunas`}
+          trend={{ value: "Tertunggak", isPositive: false }}
           icon={<AlertCircle className="w-4 h-4 text-amber-600" />}
         />
       </div>
@@ -84,39 +119,36 @@ export default function DashboardPage() {
               <h2 className="text-sm font-semibold text-zinc-950">Tren Pembayaran (7 Hari Terakhir)</h2>
               <p className="text-xs text-steel mt-0.5">Distribusi penerimaan tunai dan transfer bank harian</p>
             </div>
-            <span className="text-xs font-mono text-zinc-400">Total: Rp 28.600.000</span>
+            <span className="text-xs font-mono text-zinc-400">Total: {formatRupiah(weekTotal)}</span>
           </div>
 
-          {/* Minimalist Bar Chart Representation */}
+          {/* Minimalist Bar Chart */}
           <div className="mt-6 space-y-3">
-            {[
-              { day: 'Senin', tunai: 80, transfer: 60, total: 'Rp 4.500.000' },
-              { day: 'Selasa', tunai: 65, transfer: 50, total: 'Rp 3.800.000' },
-              { day: 'Rabu', tunai: 90, transfer: 75, total: 'Rp 5.200.000' },
-              { day: 'Kamis', tunai: 70, transfer: 45, total: 'Rp 3.600.000' },
-              { day: 'Jumat', tunai: 85, transfer: 80, total: 'Rp 4.900.000' },
-              { day: 'Sabtu', tunai: 50, transfer: 30, total: 'Rp 2.350.000' },
-              { day: 'Minggu', tunai: 75, transfer: 55, total: 'Rp 4.250.000' },
-            ].map((item, idx) => (
-              <div key={idx} className="flex items-center gap-3 text-xs">
-                <span className="w-14 text-zinc-600 shrink-0">{item.day}</span>
-                <div className="flex-1 bg-zinc-100 rounded-full h-3 flex overflow-hidden">
-                  <div
-                    className="bg-emerald-500 h-full transition-all duration-300"
-                    style={{ width: `${(item.tunai / 170) * 100}%` }}
-                    title="Tunai"
-                  />
-                  <div
-                    className="bg-blue-500 h-full transition-all duration-300"
-                    style={{ width: `${(item.transfer / 170) * 100}%` }}
-                    title="Transfer"
-                  />
+            {stats?.last7Days.map((item, idx) => {
+              const tunaiPct = maxDayTotal > 0 ? (item.tunai / maxDayTotal) * 100 : 0;
+              const transferPct = maxDayTotal > 0 ? (item.transfer / maxDayTotal) * 100 : 0;
+
+              return (
+                <div key={idx} className="flex items-center gap-3 text-xs">
+                  <span className="w-16 text-zinc-600 shrink-0">{item.day}</span>
+                  <div className="flex-1 bg-zinc-100 rounded-full h-3 flex overflow-hidden">
+                    <div
+                      className="bg-emerald-500 h-full transition-all duration-300"
+                      style={{ width: `${tunaiPct}%` }}
+                      title={`Tunai: ${formatRupiah(item.tunai)}`}
+                    />
+                    <div
+                      className="bg-blue-500 h-full transition-all duration-300"
+                      style={{ width: `${transferPct}%` }}
+                      title={`Transfer: ${formatRupiah(item.transfer)}`}
+                    />
+                  </div>
+                  <span className="w-28 text-right font-mono font-medium text-zinc-900 shrink-0">
+                    {formatRupiah(item.total)}
+                  </span>
                 </div>
-                <span className="w-24 text-right font-mono font-medium text-zinc-900 shrink-0">
-                  {item.total}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="mt-6 pt-4 border-t border-zinc-100 flex items-center gap-4 text-xs text-zinc-500">
@@ -178,7 +210,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="mt-6 pt-4 border-t border-zinc-100 text-xs text-zinc-400 font-mono">
-            Status Sistem: Terhubung ke PostgreSQL
+            Status Sistem: Terhubung ke PostgreSQL 16
           </div>
         </div>
       </div>

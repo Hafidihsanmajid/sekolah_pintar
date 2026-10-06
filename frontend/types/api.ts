@@ -137,3 +137,106 @@ export interface Payment {
   details?: PaymentDetail[];
   createdAt?: string;
 }
+
+export interface DashboardStats {
+  today: {
+    total: number;
+    count: number;
+    cash: number;
+    transfer: number;
+  };
+  arrears: {
+    total: number;
+    studentsCount: number;
+  };
+  last7Days: Array<{
+    date: string;
+    day: string;
+    tunai: number;
+    transfer: number;
+    total: number;
+  }>;
+}
+
+export interface DailyCashReport {
+  period: {
+    startDate: string;
+    endDate: string;
+  };
+  summary: {
+    totalCash: number;
+    totalTransfer: number;
+    totalOverall: number;
+    completedCount: number;
+    voidCount: number;
+    voidAmount: number;
+  };
+  byMethod: Array<{
+    methodId: number;
+    methodName: string;
+    methodType: 'cash' | 'transfer';
+    accountNumber?: string | null;
+    transactionCount: number;
+    totalAmount: number;
+  }>;
+  byFeeCategory: Array<{
+    categoryName: string;
+    totalAmount: number;
+    count: number;
+  }>;
+  transactions: Array<{
+    id: number;
+    invoiceNumber: string;
+    date: string;
+    studentName?: string;
+    classroomName?: string;
+    methodName: string;
+    methodType: 'cash' | 'transfer';
+    totalAmount: number;
+    cashierName?: string;
+    status: 'completed' | 'void';
+  }>;
+}
+
+export interface ArrearsStudent {
+  studentId: number;
+  studentNis: string;
+  studentName: string;
+  classroomName?: string;
+  totalArrears: number;
+  billCount: number;
+  bills: Array<{
+    id: number;
+    title: string;
+    categoryName?: string;
+    amount: number;
+    paidAmount: number;
+    remainingAmount: number;
+    dueDate?: string | null;
+  }>;
+}
+
+export interface ArrearsReport {
+  summary: {
+    totalStudentsWithArrears: number;
+    totalUnpaidBillsCount: number;
+    grandTotalArrears: number;
+  };
+  students: ArrearsStudent[];
+}
+
+export interface ReconciliationReport {
+  period: {
+    startDate: string;
+    endDate: string;
+  };
+  channels: Array<{
+    methodId: number;
+    name: string;
+    type: 'cash' | 'transfer';
+    accountNumber?: string | null;
+    accountHolder?: string | null;
+    transactionCount: number;
+    systemCalculatedTotal: number;
+  }>;
+}
