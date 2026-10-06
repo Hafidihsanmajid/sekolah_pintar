@@ -2,7 +2,7 @@ import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'ax
 import { ApiResponse } from '@/types/api';
 import { getAuthToken, removeAuthToken } from './auth-token';
 
-const baseURL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
+const baseURL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8080/api';
 
 export const axiosInstance: AxiosInstance = axios.create({
   baseURL,
