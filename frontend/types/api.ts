@@ -85,3 +85,55 @@ export interface PaymentMethod {
   isActive: boolean;
   createdAt?: string;
 }
+
+export interface Bill {
+  id: number;
+  studentId: number;
+  studentName?: string;
+  studentNis?: string;
+  classroomName?: string;
+  feeCategoryId: number;
+  feeCategoryName?: string;
+  feeCategoryType?: 'monthly' | 'incidental';
+  academicYearId: number;
+  academicYearName?: string;
+  title: string;
+  month?: number | null;
+  year?: number | null;
+  amount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  status: 'unpaid' | 'partially_paid' | 'paid';
+  dueDate?: string | null;
+  createdAt?: string;
+}
+
+export interface PaymentDetail {
+  id: number;
+  billId: number;
+  billTitle?: string;
+  feeCategoryName?: string;
+  amount: number;
+}
+
+export interface Payment {
+  id: number;
+  invoiceNumber: string;
+  studentId: number;
+  studentName?: string;
+  studentNis?: string;
+  classroomName?: string;
+  cashierId: number;
+  cashierName?: string;
+  paymentMethodId: number;
+  paymentMethodName?: string;
+  paymentMethodType?: 'cash' | 'transfer';
+  totalAmount: number;
+  paymentDate: string;
+  status: 'completed' | 'void';
+  notes?: string | null;
+  voidedAt?: string | null;
+  voidReason?: string | null;
+  details?: PaymentDetail[];
+  createdAt?: string;
+}

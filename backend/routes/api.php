@@ -2,8 +2,10 @@
 
 use App\Http\Controllers\Api\AcademicYearController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BillController;
 use App\Http\Controllers\Api\ClassroomController;
 use App\Http\Controllers\Api\FeeCategoryController;
+use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\StudentController;
 use Illuminate\Http\Request;
@@ -36,9 +38,9 @@ Route::prefix('auth')->group(function () {
     });
 });
 
-// Master Data Routes (Protected with Sanctum & RBAC)
+// Protected Core Application Routes
 Route::middleware(['auth:sanctum', 'role:super_admin|admin_tu|kepala_sekolah'])->group(function () {
-    // Read Routes (Super Admin, Admin TU, Kepala Sekolah)
+    // 1. Master Data (Read)
     Route::get('/academic-years', [AcademicYearController::class, 'index']);
     Route::get('/academic-years/{academicYear}', [AcademicYearController::class, 'show']);
 
@@ -54,7 +56,13 @@ Route::middleware(['auth:sanctum', 'role:super_admin|admin_tu|kepala_sekolah'])-
     Route::get('/payment-methods', [PaymentMethodController::class, 'index']);
     Route::get('/payment-methods/{paymentMethod}', [PaymentMethodController::class, 'show']);
 
-    // Mutation Routes (Super Admin & Admin TU only - Kepala Sekolah prohibited)
+    // 2. Transaksi & Tagihan (Read)
+    Route::get('/bills', [BillController::class, 'index']);
+    Route::get('/students/{student}/bills', [BillController::class, 'studentBills']);
+    Route::get('/payments', [PaymentController::class, 'index']);
+    Route::get('/payments/{payment}', [PaymentController::class, 'show']);
+
+    // 3. Mutasi Master Data (Super Admin & Admin TU)
     Route::middleware('role:super_admin|admin_tu')->group(function () {
         Route::post('/academic-years', [AcademicYearController::class, 'store']);
         Route::put('/academic-years/{academicYear}', [AcademicYearController::class, 'update']);
@@ -75,5 +83,14 @@ Route::middleware(['auth:sanctum', 'role:super_admin|admin_tu|kepala_sekolah'])-
         Route::post('/payment-methods', [PaymentMethodController::class, 'store']);
         Route::put('/payment-methods/{paymentMethod}', [PaymentMethodController::class, 'update']);
         Route::delete('/payment-methods/{paymentMethod}', [PaymentMethodController::class, 'destroy']);
+
+        // Kasir & Tagihan (Store)
+        Route::post('/bills/generate', [BillController::class, 'generate']);
+        Route::post('/payments', [PaymentController::class, 'store']);
+    });
+
+    // 4. Pembatalan Transaksi Void (Super Admin Only)
+    Route::middleware('role:super_admin')->group(function () {
+        Route::post('/payments/{payment}/void', [PaymentController::class, 'void']);
     });
 });
