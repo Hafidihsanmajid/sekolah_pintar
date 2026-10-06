@@ -3,6 +3,6 @@
 import React from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function MasterLayout({ children }: { children: React.ReactNode }) {
   return <AppShell>{children}</AppShell>;
 }

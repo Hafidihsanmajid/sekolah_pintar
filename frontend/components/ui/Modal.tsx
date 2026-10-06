@@ -12,6 +12,7 @@ export interface ModalProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
 export function Modal({
@@ -21,8 +22,11 @@ export function Modal({
   description,
   children,
   footer,
-  maxWidth = 'md',
+  maxWidth,
+  size,
 }: ModalProps) {
+  const resolvedWidth = size || maxWidth || 'md';
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -39,55 +43,50 @@ export function Modal({
 
   if (!isOpen) return null;
 
-  const maxWidthClasses = {
+  const maxWidthStyles = {
     sm: 'max-w-sm',
-    md: 'max-w-lg',
-    lg: 'max-w-2xl',
-    xl: 'max-w-4xl',
+    md: 'max-w-md',
+    lg: 'max-w-lg',
+    xl: 'max-w-xl',
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/40 backdrop-blur-xs animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
       <div
-        className="fixed inset-0"
-        aria-hidden="true"
+        className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
         onClick={onClose}
       />
+
+      {/* Modal Dialog */}
       <div
         className={cn(
-          'relative w-full bg-white rounded-2xl border border-zinc-200/90 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.15)] overflow-hidden z-10 flex flex-col max-h-[90vh]',
-          maxWidthClasses[maxWidth]
+          'relative w-full bg-surface border border-zinc-200/80 rounded-2xl shadow-2xl p-6 transition-all z-10',
+          maxWidthStyles[resolvedWidth]
         )}
-        role="dialog"
-        aria-modal="true"
       >
-        {(title || description) && (
-          <div className="flex items-start justify-between p-5 border-b border-zinc-100">
-            <div>
-              {title && (
-                <h3 className="text-base font-semibold text-zinc-950">{title}</h3>
-              )}
-              {description && (
-                <p className="mt-1 text-xs text-zinc-500">{description}</p>
-              )}
-            </div>
-            <button
-              onClick={onClose}
-              className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition cursor-pointer"
-              aria-label="Tutup"
-            >
-              <X className="w-4 h-4" />
-            </button>
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            {title && (
+              <h3 className="text-base font-semibold text-zinc-950 tracking-tight">
+                {title}
+              </h3>
+            )}
+            {description && (
+              <p className="text-xs text-steel mt-0.5">{description}</p>
+            )}
           </div>
-        )}
+          <button
+            onClick={onClose}
+            className="text-zinc-400 hover:text-zinc-600 rounded-lg p-1 transition cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
 
-        <div className="p-5 overflow-y-auto space-y-4">{children}</div>
+        <div className="space-y-4">{children}</div>
 
-        {footer && (
-          <div className="flex items-center justify-end gap-2 p-4 bg-zinc-50/60 border-t border-zinc-100">
-            {footer}
-          </div>
-        )}
+        {footer && <div className="mt-6 flex justify-end gap-2">{footer}</div>}
       </div>
     </div>
   );

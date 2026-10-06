@@ -11,6 +11,8 @@ import {
   FileSpreadsheet,
   Settings,
   GraduationCap,
+  School,
+  Coins,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -25,7 +27,9 @@ const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Kasir Pembayaran', href: '/transaksi/kasir', icon: CreditCard },
   { label: 'Riwayat Transaksi', href: '/transaksi/riwayat', icon: Receipt },
-  { label: 'Data Siswa & Master', href: '/master/siswa', icon: Users },
+  { label: 'Data Siswa', href: '/master/siswa', icon: Users },
+  { label: 'Kelas & Tahun Ajaran', href: '/master/kelas', icon: School },
+  { label: 'Tarif & Pembayaran', href: '/master/biaya', icon: Coins },
   { label: 'Laporan Keuangan', href: '/laporan', icon: FileSpreadsheet },
   { label: 'Pengaturan Sistem', href: '/pengaturan', icon: Settings },
 ];
