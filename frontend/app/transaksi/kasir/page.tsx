@@ -3,12 +3,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { apiClient } from '@/lib/api-client';
-import { Student, Bill, PaymentMethod, Payment } from '@/types/api';
+import { Student, Bill, PaymentMethod, Payment, Classroom, PaginatedData } from '@/types/api';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { InputField } from '@/components/ui/InputField';
 import { SelectField } from '@/components/ui/SelectField';
+import { cn } from '@/lib/utils';
 import {
   CreditCard,
   Search,
@@ -25,11 +26,13 @@ export default function KasirPage() {
   const { user } = useAuth();
   const isReadOnly = user?.role === 'kepala_sekolah';
 
-  // Search Student State
-  const [studentSearch, setStudentSearch] = useState('');
-  const [studentSuggestions, setStudentSuggestions] = useState<Student[]>([]);
+  // Classroom & Students by Class State
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [selectedClassroomId, setSelectedClassroomId] = useState<string>('');
+  const [studentsList, setStudentsList] = useState<Student[]>([]);
+  const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  const [studentFilter, setStudentFilter] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [isSearching, setIsSearching] = useState(false);
 
   // Bills & Methods State
   const [bills, setBills] = useState<Bill[]>([]);
@@ -57,51 +60,73 @@ export default function KasirPage() {
     }).format(amount);
   };
 
-  // Fetch payment methods on mount
+  // Fetch payment methods and classrooms on mount
   useEffect(() => {
-    const fetchMethods = async () => {
+    const fetchInitialData = async () => {
       try {
-        const res = await apiClient.get<PaymentMethod[]>('/payment-methods', {
-          params: { isActive: true },
-        });
-        if (res.success && res.data) {
-          setPaymentMethods(res.data);
-          if (res.data.length > 0) {
-            setSelectedMethodId(res.data[0].id.toString());
+        const [methodsRes, classroomsRes] = await Promise.all([
+          apiClient.get<PaymentMethod[]>('/payment-methods', { params: { isActive: true } }),
+          apiClient.get<Classroom[]>('/classrooms'),
+        ]);
+
+        if (methodsRes.success && methodsRes.data) {
+          setPaymentMethods(methodsRes.data);
+          if (methodsRes.data.length > 0) {
+            setSelectedMethodId(methodsRes.data[0].id.toString());
+          }
+        }
+
+        if (classroomsRes.success && classroomsRes.data) {
+          setClassrooms(classroomsRes.data);
+          if (classroomsRes.data.length > 0) {
+            setSelectedClassroomId(classroomsRes.data[0].id.toString());
           }
         }
       } catch {
         // Handled
       }
     };
-    fetchMethods();
+    fetchInitialData();
   }, []);
 
-  // Search students debounce
-  useEffect(() => {
-    if (!studentSearch.trim() || studentSearch.length < 2) {
-      setStudentSuggestions([]);
+  // Fetch students by selected classroom
+  const fetchClassStudents = useCallback(async (classroomId: string) => {
+    if (!classroomId) {
+      setStudentsList([]);
       return;
     }
-
-    const timer = setTimeout(async () => {
-      setIsSearching(true);
-      try {
-        const res = await apiClient.get<{ items: Student[] }>('/students', {
-          params: { search: studentSearch, perPage: 6 },
-        });
-        if (res.success && res.data) {
-          setStudentSuggestions(res.data.items);
-        }
-      } catch {
-        // Handled
-      } finally {
-        setIsSearching(false);
+    setIsLoadingStudents(true);
+    try {
+      const res = await apiClient.get<PaginatedData<Student>>('/students', {
+        params: { classroomId, perPage: 50, isActive: true },
+      });
+      if (res.success && res.data) {
+        setStudentsList(res.data.items);
       }
-    }, 250);
+    } catch {
+      // Handled
+    } finally {
+      setIsLoadingStudents(false);
+    }
+  }, []);
 
-    return () => clearTimeout(timer);
-  }, [studentSearch]);
+  useEffect(() => {
+    if (selectedClassroomId) {
+      fetchClassStudents(selectedClassroomId);
+    }
+  }, [selectedClassroomId, fetchClassStudents]);
+
+  // Filter students by local search/query without requiring search trigger
+  const filteredStudents = useMemo(() => {
+    if (!studentFilter.trim()) return studentsList;
+    const q = studentFilter.toLowerCase();
+    return studentsList.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.nis.toLowerCase().includes(q) ||
+        (s.nisn && s.nisn.toLowerCase().includes(q))
+    );
+  }, [studentsList, studentFilter]);
 
   // Fetch student active bills when selected
   const fetchStudentBills = useCallback(async (studentId: number) => {
@@ -132,14 +157,11 @@ export default function KasirPage() {
 
   const handleSelectStudent = (student: Student) => {
     setSelectedStudent(student);
-    setStudentSearch(`${student.name} (${student.nis})`);
-    setStudentSuggestions([]);
     fetchStudentBills(student.id);
   };
 
   const handleReset = () => {
     setSelectedStudent(null);
-    setStudentSearch('');
     setBills([]);
     setSelectedItems({});
     setCashGiven('');
@@ -261,68 +283,155 @@ export default function KasirPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Kolom Kiri: 2 Cols */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Box Pencarian Siswa */}
-          <div className="bg-white rounded-2xl border border-zinc-200/80 p-5 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)]">
-            <label className="text-xs font-semibold text-zinc-950 mb-2 block">
-              1. Identifikasi Siswa
-            </label>
-            <div className="relative">
-              <div className="relative">
-                <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Ketik NIS atau Nama Siswa untuk mencari..."
-                  value={studentSearch}
-                  onChange={(e) => setStudentSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 text-xs bg-zinc-50 border border-zinc-200 rounded-xl text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition"
-                />
+          {/* Box Identifikasi Siswa (Tabel Siswa Berdasarkan Kelas) */}
+          <div className="bg-white rounded-2xl border border-zinc-200/80 p-5 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <label className="text-xs font-semibold text-zinc-950 uppercase tracking-wider block">
+                  1. Identifikasi Siswa Berdasarkan Kelas
+                </label>
+                <p className="text-[11px] text-steel mt-0.5">
+                  Pilih kelas dan klik baris siswa pada tabel untuk menghubungkan tagihan otomatis.
+                </p>
               </div>
 
-              {/* Suggestions Dropdown */}
-              {studentSuggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-zinc-200 rounded-xl shadow-lg z-20 max-h-56 overflow-y-auto divide-y divide-zinc-100">
-                  {studentSuggestions.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => handleSelectStudent(s)}
-                      className="w-full p-3 text-left hover:bg-emerald-50/50 flex items-center justify-between text-xs transition cursor-pointer"
-                    >
-                      <div>
-                        <div className="font-semibold text-zinc-900">{s.name}</div>
-                        <div className="text-[11px] text-zinc-400 font-mono">
-                          NIS: {s.nis} • Kelas: {s.classroomName || '-'}
-                        </div>
-                      </div>
-                      <Badge variant="outline" size="sm">
-                        Pilih
-                      </Badge>
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div className="w-full sm:w-64">
+                <SelectField
+                  label=""
+                  options={classrooms.map((c) => ({
+                    label: `Kelas ${c.name} (${c.level}) - ${c.studentsCount ?? 0} Siswa`,
+                    value: c.id.toString(),
+                  }))}
+                  value={selectedClassroomId}
+                  onChange={(e) => setSelectedClassroomId(e.target.value)}
+                  placeholderOption="Pilih Kelas..."
+                />
+              </div>
+            </div>
+
+            {/* Quick Filter & Counter */}
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="relative w-full sm:max-w-xs">
+                <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Saring nama atau NIS siswa..."
+                  value={studentFilter}
+                  onChange={(e) => setStudentFilter(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-zinc-50 border border-zinc-200 rounded-lg text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-600 transition"
+                />
+              </div>
+              <div className="text-[11px] font-mono text-zinc-400">
+                {filteredStudents.length} siswa di kelas
+              </div>
+            </div>
+
+            {/* Tabel Siswa Berdasarkan Kelas */}
+            <div className="border border-zinc-200/80 rounded-xl overflow-hidden">
+              <div className="max-h-60 overflow-y-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-zinc-50 border-b border-zinc-200/80 text-zinc-500 font-medium sticky top-0 z-10">
+                    <tr>
+                      <th className="py-2.5 px-3 font-medium">NIS</th>
+                      <th className="py-2.5 px-3 font-medium">Nama Siswa</th>
+                      <th className="py-2.5 px-3 font-medium">Kelas</th>
+                      <th className="py-2.5 px-3 font-medium text-center">Status</th>
+                      <th className="py-2.5 px-3 font-medium text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100 text-zinc-800">
+                    {isLoadingStudents ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-zinc-400">
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                            <span>Memuat daftar siswa...</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : filteredStudents.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-zinc-400">
+                          Tidak ada data siswa di kelas ini
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredStudents.map((s) => {
+                        const isSelected = selectedStudent?.id === s.id;
+                        return (
+                          <tr
+                            key={s.id}
+                            onClick={() => handleSelectStudent(s)}
+                            className={cn(
+                              'transition-colors cursor-pointer',
+                              isSelected
+                                ? 'bg-emerald-50/90 font-medium text-zinc-950 ring-1 ring-emerald-500/20'
+                                : 'hover:bg-zinc-50/80'
+                            )}
+                          >
+                            <td className="py-2.5 px-3 font-mono text-zinc-600">{s.nis}</td>
+                            <td className="py-2.5 px-3 font-medium">
+                              <div className="flex items-center gap-2">
+                                <span>{s.name}</span>
+                                {isSelected && (
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 text-zinc-500 font-mono text-[11px]">
+                              {s.classroomName || '-'}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <Badge variant={s.isActive ? 'paid' : 'neutral'} size="sm">
+                                {s.isActive ? 'Aktif' : 'Non-Aktif'}
+                              </Badge>
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectStudent(s);
+                                }}
+                                className={cn(
+                                  'px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer',
+                                  isSelected
+                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                    : 'bg-zinc-100 hover:bg-emerald-600 hover:text-white text-zinc-700'
+                                )}
+                              >
+                                {isSelected ? 'Terpilih' : 'Pilih'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* Profil Siswa Terpilih */}
             {selectedStudent && (
-              <div className="mt-4 p-4 rounded-xl bg-emerald-50/50 border border-emerald-200/70 flex items-center justify-between">
+              <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200/80 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold">
-                    <User className="w-5 h-5" />
+                  <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold">
+                    <User className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="font-semibold text-zinc-950 text-sm">
+                    <div className="font-semibold text-zinc-950 text-xs">
                       {selectedStudent.name}
                     </div>
-                    <div className="text-xs text-zinc-600 flex items-center gap-2 mt-0.5">
+                    <div className="text-[11px] text-zinc-600 flex items-center gap-2 mt-0.5">
                       <span className="font-mono">NIS: {selectedStudent.nis}</span>
                       <span>•</span>
                       <span>Kelas: {selectedStudent.classroomName}</span>
                     </div>
                   </div>
                 </div>
-                <Badge variant={selectedStudent.isActive ? 'success' : 'neutral'} size="sm">
-                  {selectedStudent.isActive ? 'Siswa Aktif' : 'Non-Aktif'}
+                <Badge variant={selectedStudent.isActive ? 'paid' : 'neutral'} size="sm">
+                  Tagihan Tersinkron
                 </Badge>
               </div>
             )}
