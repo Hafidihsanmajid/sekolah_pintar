@@ -21,28 +21,33 @@ class PaymentController extends Controller
     {
         $query = Payment::with(['student.classroom', 'cashier', 'paymentMethod', 'details.bill.feeCategory']);
 
-        if ($request->filled('startDate')) {
-            $query->whereDate('payment_date', '>=', $request->input('startDate'));
+        $startDate = $request->input('startDate') ?? $request->input('params.startDate');
+        if ($startDate) {
+            $query->whereDate('payment_date', '>=', $startDate);
         }
 
-        if ($request->filled('endDate')) {
-            $query->whereDate('payment_date', '<=', $request->input('endDate'));
+        $endDate = $request->input('endDate') ?? $request->input('params.endDate');
+        if ($endDate) {
+            $query->whereDate('payment_date', '<=', $endDate);
         }
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->input('status'));
+        $status = $request->input('status') ?? $request->input('params.status');
+        if ($status) {
+            $query->where('status', $status);
         }
 
-        if ($request->filled('paymentMethodId')) {
-            $query->where('payment_method_id', $request->input('paymentMethodId'));
+        $paymentMethodId = $request->input('paymentMethodId') ?? $request->input('params.paymentMethodId');
+        if ($paymentMethodId) {
+            $query->where('payment_method_id', $paymentMethodId);
         }
 
-        if ($request->filled('studentId')) {
-            $query->where('student_id', $request->input('studentId'));
+        $studentId = $request->input('studentId') ?? $request->input('params.studentId');
+        if ($studentId) {
+            $query->where('student_id', $studentId);
         }
 
-        if ($request->filled('search')) {
-            $search = $request->input('search');
+        $search = $request->input('search') ?? $request->input('params.search');
+        if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('invoice_number', 'like', "%{$search}%")
                   ->orWhereHas('student', function ($sq) use ($search) {
@@ -52,7 +57,7 @@ class PaymentController extends Controller
             });
         }
 
-        $perPage = (int) $request->input('perPage', 15);
+        $perPage = (int) ($request->input('perPage') ?? $request->input('params.perPage', 15));
         $payments = $query->orderBy('id', 'desc')->paginate($perPage);
 
         return $this->successResponse([

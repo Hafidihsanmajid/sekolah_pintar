@@ -157,4 +157,27 @@ class CashierAndPaymentTest extends TestCase
 
         $response->assertStatus(403);
     }
+
+    public function test_user_can_filter_payments_by_date_range(): void
+    {
+        $today = now()->toDateString();
+        $tomorrow = now()->addDay()->toDateString();
+
+        // Query matching today
+        $responseToday = $this->withHeader('Authorization', 'Bearer ' . $this->adminTuToken)
+            ->getJson("/api/payments?startDate={$today}&endDate={$today}");
+
+        $responseToday->assertStatus(200)
+            ->assertJsonPath('success', true);
+        $countToday = count($responseToday->json('data.items'));
+        $this->assertGreaterThan(0, $countToday);
+
+        // Query matching tomorrow (should be 0)
+        $responseTomorrow = $this->withHeader('Authorization', 'Bearer ' . $this->adminTuToken)
+            ->getJson("/api/payments?startDate={$tomorrow}&endDate={$tomorrow}");
+
+        $responseTomorrow->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.pagination.total', 0);
+    }
 }

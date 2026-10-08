@@ -81,7 +81,7 @@ export default function RiwayatTransaksiPage() {
       if (appliedStartDate) params.startDate = appliedStartDate;
       if (appliedEndDate) params.endDate = appliedEndDate;
 
-      const res = await apiClient.get<PaginatedData<Payment>>('/payments', { params });
+      const res = await apiClient.get<PaginatedData<Payment>>('/payments', params);
       if (res.success && res.data) {
         setPayments(res.data.items);
         setTotalRows(res.data.pagination.total);
@@ -281,7 +281,7 @@ export default function RiwayatTransaksiPage() {
       if (currentStart) params.startDate = currentStart;
       if (currentEnd) params.endDate = currentEnd;
 
-      const res = await apiClient.get<PaginatedData<Payment>>('/payments', { params });
+      const res = await apiClient.get<PaginatedData<Payment>>('/payments', params);
       const items = res.data?.items || [];
       const totalAmount = items.reduce((sum, item) => sum + item.totalAmount, 0);
 
@@ -474,7 +474,12 @@ export default function RiwayatTransaksiPage() {
               { label: 'Void (Dibatalkan)', value: 'void' },
             ]}
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setStatusFilter(val);
+              setAppliedStatusFilter(val);
+              setPage(1);
+            }}
           />
         </div>
 
@@ -485,7 +490,12 @@ export default function RiwayatTransaksiPage() {
             <InputField
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setStartDate(val);
+                setAppliedStartDate(val);
+                setPage(1);
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleApplyFilter();
               }}
@@ -501,7 +511,12 @@ export default function RiwayatTransaksiPage() {
             <InputField
               type="date"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setEndDate(val);
+                setAppliedEndDate(val);
+                setPage(1);
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleApplyFilter();
               }}
