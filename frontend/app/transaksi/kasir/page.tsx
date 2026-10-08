@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { apiClient } from '@/lib/api-client';
-import { Student, Bill, PaymentMethod, Payment, Classroom, PaginatedData } from '@/types/api';
+import { Student, Bill, PaymentMethod, Payment, Classroom, AcademicYear, PaginatedData } from '@/types/api';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
@@ -14,7 +14,6 @@ import {
   CreditCard,
   Search,
   User,
-  Receipt,
   CheckCircle2,
   Printer,
   RotateCcw,
@@ -26,7 +25,9 @@ export default function KasirPage() {
   const { user } = useAuth();
   const isReadOnly = user?.role === 'kepala_sekolah';
 
-  // Classroom & Students by Class State
+  // Academic Year, Classroom & Students by Class State
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string>('');
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [selectedClassroomId, setSelectedClassroomId] = useState<string>('');
   const [studentsList, setStudentsList] = useState<Student[]>([]);
@@ -60,13 +61,14 @@ export default function KasirPage() {
     }).format(amount);
   };
 
-  // Fetch payment methods and classrooms on mount
+  // Fetch payment methods, classrooms, and academic years on mount
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const [methodsRes, classroomsRes] = await Promise.all([
+        const [methodsRes, classroomsRes, yearsRes] = await Promise.all([
           apiClient.get<PaymentMethod[]>('/payment-methods', { params: { isActive: true } }),
           apiClient.get<Classroom[]>('/classrooms'),
+          apiClient.get<AcademicYear[]>('/academic-years'),
         ]);
 
         if (methodsRes.success && methodsRes.data) {
@@ -76,11 +78,16 @@ export default function KasirPage() {
           }
         }
 
+        if (yearsRes.success && yearsRes.data) {
+          setAcademicYears(yearsRes.data);
+          const activeYear = yearsRes.data.find((y) => y.isActive) || yearsRes.data[0];
+          if (activeYear) {
+            setSelectedAcademicYearId(activeYear.id.toString());
+          }
+        }
+
         if (classroomsRes.success && classroomsRes.data) {
           setClassrooms(classroomsRes.data);
-          if (classroomsRes.data.length > 0) {
-            setSelectedClassroomId(classroomsRes.data[0].id.toString());
-          }
         }
       } catch {
         // Handled
@@ -89,17 +96,50 @@ export default function KasirPage() {
     fetchInitialData();
   }, []);
 
-  // Fetch students by selected classroom
-  const fetchClassStudents = useCallback(async (classroomId: string) => {
-    if (!classroomId) {
-      setStudentsList([]);
-      return;
+  // Filtered Classrooms by selected Academic Year
+  const filteredClassrooms = useMemo(() => {
+    if (!selectedAcademicYearId) return classrooms;
+    return classrooms.filter((c) => c.academicYearId?.toString() === selectedAcademicYearId);
+  }, [classrooms, selectedAcademicYearId]);
+
+  // Handler Tahun Ajaran Change
+  const handleAcademicYearChange = (yearId: string) => {
+    setSelectedAcademicYearId(yearId);
+    if (yearId && selectedClassroomId) {
+      const currentClassroom = classrooms.find((c) => c.id.toString() === selectedClassroomId);
+      if (currentClassroom && currentClassroom.academicYearId?.toString() !== yearId) {
+        setSelectedClassroomId('');
+      }
     }
+  };
+
+  // Handler Classroom Change
+  const handleClassroomChange = (classroomId: string) => {
+    setSelectedClassroomId(classroomId);
+    if (classroomId && !selectedAcademicYearId) {
+      const cls = classrooms.find((c) => c.id.toString() === classroomId);
+      if (cls && cls.academicYearId) {
+        setSelectedAcademicYearId(cls.academicYearId.toString());
+      }
+    }
+  };
+
+  // Fetch students by selected classroom or academic year
+  const fetchClassStudents = useCallback(async (classroomId: string, academicYearId: string) => {
     setIsLoadingStudents(true);
     try {
-      const res = await apiClient.get<PaginatedData<Student>>('/students', {
-        params: { classroomId, perPage: 50, isActive: true },
-      });
+      const params: Record<string, string | number | boolean> = {
+        perPage: 50,
+        isActive: true,
+      };
+      if (classroomId) {
+        params.classroomId = classroomId;
+      }
+      if (academicYearId) {
+        params.academicYearId = academicYearId;
+      }
+
+      const res = await apiClient.get<PaginatedData<Student>>('/students', { params });
       if (res.success && res.data) {
         setStudentsList(res.data.items);
       }
@@ -111,10 +151,8 @@ export default function KasirPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedClassroomId) {
-      fetchClassStudents(selectedClassroomId);
-    }
-  }, [selectedClassroomId, fetchClassStudents]);
+    fetchClassStudents(selectedClassroomId, selectedAcademicYearId);
+  }, [selectedClassroomId, selectedAcademicYearId, fetchClassStudents]);
 
   // Filter students by local search/query without requiring search trigger
   const filteredStudents = useMemo(() => {
@@ -291,21 +329,40 @@ export default function KasirPage() {
                   1. Identifikasi Siswa Berdasarkan Kelas
                 </label>
                 <p className="text-[11px] text-steel mt-0.5">
-                  Pilih kelas dan klik baris siswa pada tabel untuk menghubungkan tagihan otomatis.
+                  Pilih tahun ajaran & kelas, lalu klik baris siswa pada tabel untuk menghubungkan tagihan otomatis.
                 </p>
               </div>
 
-              <div className="w-full sm:w-64">
-                <SelectField
-                  label=""
-                  options={classrooms.map((c) => ({
-                    label: `Kelas ${c.name} (${c.level}) - ${c.studentsCount ?? 0} Siswa`,
-                    value: c.id.toString(),
-                  }))}
-                  value={selectedClassroomId}
-                  onChange={(e) => setSelectedClassroomId(e.target.value)}
-                  placeholderOption="Pilih Kelas..."
-                />
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+                <div className="w-full sm:w-44">
+                  <SelectField
+                    label=""
+                    options={[
+                      { label: 'Semua Tahun Ajaran', value: '' },
+                      ...academicYears.map((y) => ({
+                        label: `${y.name} - ${y.semester}${y.isActive ? ' (Aktif)' : ''}`,
+                        value: y.id.toString(),
+                      })),
+                    ]}
+                    value={selectedAcademicYearId}
+                    onChange={(e) => handleAcademicYearChange(e.target.value)}
+                  />
+                </div>
+
+                <div className="w-full sm:w-52">
+                  <SelectField
+                    label=""
+                    options={[
+                      { label: 'Semua Kelas', value: '' },
+                      ...filteredClassrooms.map((c) => ({
+                        label: `Kelas ${c.name} (${c.level})`,
+                        value: c.id.toString(),
+                      })),
+                    ]}
+                    value={selectedClassroomId}
+                    onChange={(e) => handleClassroomChange(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
 
@@ -322,7 +379,7 @@ export default function KasirPage() {
                 />
               </div>
               <div className="text-[11px] font-mono text-zinc-400">
-                {filteredStudents.length} siswa di kelas
+                {filteredStudents.length} siswa ditemukan
               </div>
             </div>
 
@@ -352,7 +409,7 @@ export default function KasirPage() {
                     ) : filteredStudents.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="py-8 text-center text-zinc-400">
-                          Tidak ada data siswa di kelas ini
+                          Tidak ada data siswa ditemukan
                         </td>
                       </tr>
                     ) : (
