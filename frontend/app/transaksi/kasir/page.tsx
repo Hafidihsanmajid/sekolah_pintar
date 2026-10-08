@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { apiClient } from '@/lib/api-client';
-import { Student, Bill, PaymentMethod, Payment, Classroom, PaginatedData } from '@/types/api';
+import { Student, Bill, PaymentMethod, Payment, Classroom, AcademicYear, PaginatedData } from '@/types/api';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
@@ -14,7 +14,6 @@ import {
   CreditCard,
   Search,
   User,
-  Receipt,
   CheckCircle2,
   Printer,
   RotateCcw,
@@ -26,7 +25,9 @@ export default function KasirPage() {
   const { user } = useAuth();
   const isReadOnly = user?.role === 'kepala_sekolah';
 
-  // Classroom & Students by Class State
+  // Academic Year, Classroom & Students by Class State
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string>('');
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [selectedClassroomId, setSelectedClassroomId] = useState<string>('');
   const [studentsList, setStudentsList] = useState<Student[]>([]);
@@ -49,6 +50,7 @@ export default function KasirPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastPayment, setLastPayment] = useState<Payment | null>(null);
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
 
   // Format currency helper
@@ -60,13 +62,14 @@ export default function KasirPage() {
     }).format(amount);
   };
 
-  // Fetch payment methods and classrooms on mount
+  // Fetch payment methods, classrooms, and academic years on mount
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const [methodsRes, classroomsRes] = await Promise.all([
+        const [methodsRes, classroomsRes, yearsRes] = await Promise.all([
           apiClient.get<PaymentMethod[]>('/payment-methods', { params: { isActive: true } }),
           apiClient.get<Classroom[]>('/classrooms'),
+          apiClient.get<AcademicYear[]>('/academic-years'),
         ]);
 
         if (methodsRes.success && methodsRes.data) {
@@ -76,11 +79,16 @@ export default function KasirPage() {
           }
         }
 
+        if (yearsRes.success && yearsRes.data) {
+          setAcademicYears(yearsRes.data);
+          const activeYear = yearsRes.data.find((y) => y.isActive) || yearsRes.data[0];
+          if (activeYear) {
+            setSelectedAcademicYearId(activeYear.id.toString());
+          }
+        }
+
         if (classroomsRes.success && classroomsRes.data) {
           setClassrooms(classroomsRes.data);
-          if (classroomsRes.data.length > 0) {
-            setSelectedClassroomId(classroomsRes.data[0].id.toString());
-          }
         }
       } catch {
         // Handled
@@ -89,17 +97,50 @@ export default function KasirPage() {
     fetchInitialData();
   }, []);
 
-  // Fetch students by selected classroom
-  const fetchClassStudents = useCallback(async (classroomId: string) => {
-    if (!classroomId) {
-      setStudentsList([]);
-      return;
+  // Filtered Classrooms by selected Academic Year
+  const filteredClassrooms = useMemo(() => {
+    if (!selectedAcademicYearId) return classrooms;
+    return classrooms.filter((c) => c.academicYearId?.toString() === selectedAcademicYearId);
+  }, [classrooms, selectedAcademicYearId]);
+
+  // Handler Tahun Ajaran Change
+  const handleAcademicYearChange = (yearId: string) => {
+    setSelectedAcademicYearId(yearId);
+    if (yearId && selectedClassroomId) {
+      const currentClassroom = classrooms.find((c) => c.id.toString() === selectedClassroomId);
+      if (currentClassroom && currentClassroom.academicYearId?.toString() !== yearId) {
+        setSelectedClassroomId('');
+      }
     }
+  };
+
+  // Handler Classroom Change
+  const handleClassroomChange = (classroomId: string) => {
+    setSelectedClassroomId(classroomId);
+    if (classroomId && !selectedAcademicYearId) {
+      const cls = classrooms.find((c) => c.id.toString() === classroomId);
+      if (cls && cls.academicYearId) {
+        setSelectedAcademicYearId(cls.academicYearId.toString());
+      }
+    }
+  };
+
+  // Fetch students by selected classroom or academic year
+  const fetchClassStudents = useCallback(async (classroomId: string, academicYearId: string) => {
     setIsLoadingStudents(true);
     try {
-      const res = await apiClient.get<PaginatedData<Student>>('/students', {
-        params: { classroomId, perPage: 50, isActive: true },
-      });
+      const params: Record<string, string | number | boolean> = {
+        perPage: 50,
+        isActive: true,
+      };
+      if (classroomId) {
+        params.classroomId = classroomId;
+      }
+      if (academicYearId) {
+        params.academicYearId = academicYearId;
+      }
+
+      const res = await apiClient.get<PaginatedData<Student>>('/students', { params });
       if (res.success && res.data) {
         setStudentsList(res.data.items);
       }
@@ -111,10 +152,8 @@ export default function KasirPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedClassroomId) {
-      fetchClassStudents(selectedClassroomId);
-    }
-  }, [selectedClassroomId, fetchClassStudents]);
+    fetchClassStudents(selectedClassroomId, selectedAcademicYearId);
+  }, [selectedClassroomId, selectedAcademicYearId, fetchClassStudents]);
 
   // Filter students by local search/query without requiring search trigger
   const filteredStudents = useMemo(() => {
@@ -167,6 +206,7 @@ export default function KasirPage() {
     setCashGiven('');
     setNotes('');
     setErrorMessage(null);
+    setIsCheckoutModalOpen(false);
   };
 
   // Toggle item selection
@@ -202,6 +242,10 @@ export default function KasirPage() {
       return item.selected ? sum + item.payAmount : sum;
     }, 0);
   }, [selectedItems]);
+
+  const selectedItemsList = useMemo(() => {
+    return bills.filter((b) => selectedItems[b.id]?.selected && selectedItems[b.id]?.payAmount > 0);
+  }, [bills, selectedItems]);
 
   const activeMethod = useMemo(() => {
     return paymentMethods.find((m) => m.id.toString() === selectedMethodId);
@@ -246,6 +290,7 @@ export default function KasirPage() {
       const res = await apiClient.post<Payment>('/payments', payload);
       if (res.success && res.data) {
         setLastPayment(res.data);
+        setIsCheckoutModalOpen(false);
         setIsReceiptModalOpen(true);
         // Refresh bills of student
         fetchStudentBills(selectedStudent.id);
@@ -279,10 +324,8 @@ export default function KasirPage() {
         )}
       </div>
 
-      {/* Grid: Kiri (Cari Siswa & Checklist Tagihan) vs Kanan (Panel Checkout) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Kolom Kiri: 2 Cols */}
-        <div className="lg:col-span-2 space-y-6">
+      {/* Tampilan Penuh: Data Siswa & Pilih Tagihan */}
+      <div className="space-y-6">
           {/* Box Identifikasi Siswa (Tabel Siswa Berdasarkan Kelas) */}
           <div className="bg-white rounded-2xl border border-zinc-200/80 p-5 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -291,21 +334,40 @@ export default function KasirPage() {
                   1. Identifikasi Siswa Berdasarkan Kelas
                 </label>
                 <p className="text-[11px] text-steel mt-0.5">
-                  Pilih kelas dan klik baris siswa pada tabel untuk menghubungkan tagihan otomatis.
+                  Pilih tahun ajaran & kelas, lalu klik baris siswa pada tabel untuk menghubungkan tagihan otomatis.
                 </p>
               </div>
 
-              <div className="w-full sm:w-64">
-                <SelectField
-                  label=""
-                  options={classrooms.map((c) => ({
-                    label: `Kelas ${c.name} (${c.level}) - ${c.studentsCount ?? 0} Siswa`,
-                    value: c.id.toString(),
-                  }))}
-                  value={selectedClassroomId}
-                  onChange={(e) => setSelectedClassroomId(e.target.value)}
-                  placeholderOption="Pilih Kelas..."
-                />
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+                <div className="w-full sm:w-44">
+                  <SelectField
+                    label=""
+                    options={[
+                      { label: 'Semua Tahun Ajaran', value: '' },
+                      ...academicYears.map((y) => ({
+                        label: `${y.name} - ${y.semester}${y.isActive ? ' (Aktif)' : ''}`,
+                        value: y.id.toString(),
+                      })),
+                    ]}
+                    value={selectedAcademicYearId}
+                    onChange={(e) => handleAcademicYearChange(e.target.value)}
+                  />
+                </div>
+
+                <div className="w-full sm:w-52">
+                  <SelectField
+                    label=""
+                    options={[
+                      { label: 'Semua Kelas', value: '' },
+                      ...filteredClassrooms.map((c) => ({
+                        label: `Kelas ${c.name} (${c.level})`,
+                        value: c.id.toString(),
+                      })),
+                    ]}
+                    value={selectedClassroomId}
+                    onChange={(e) => handleClassroomChange(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
 
@@ -322,7 +384,7 @@ export default function KasirPage() {
                 />
               </div>
               <div className="text-[11px] font-mono text-zinc-400">
-                {filteredStudents.length} siswa di kelas
+                {filteredStudents.length} siswa ditemukan
               </div>
             </div>
 
@@ -352,7 +414,7 @@ export default function KasirPage() {
                     ) : filteredStudents.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="py-8 text-center text-zinc-400">
-                          Tidak ada data siswa di kelas ini
+                          Tidak ada data siswa ditemukan
                         </td>
                       </tr>
                     ) : (
@@ -467,7 +529,8 @@ export default function KasirPage() {
                   </div>
                 </div>
               ) : (
-                <div className="divide-y divide-zinc-100 border border-zinc-200/80 rounded-xl overflow-hidden">
+                <>
+                  <div className="divide-y divide-zinc-100 border border-zinc-200/80 rounded-xl overflow-hidden">
                   {bills.map((b) => {
                     const isChecked = selectedItems[b.id]?.selected ?? false;
                     const payVal = selectedItems[b.id]?.payAmount ?? b.remainingAmount;
@@ -532,135 +595,205 @@ export default function KasirPage() {
                     );
                   })}
                 </div>
-              )}
-            </div>
-          )}
-        </div>
 
-        {/* Kolom Kanan: 1 Col (Checkout Card) */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl border border-zinc-200/80 p-5 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] sticky top-20">
-            <h3 className="text-xs font-semibold text-zinc-950 mb-3 pb-3 border-b border-zinc-100">
-              3. Ringkasan & Pembayaran
-            </h3>
-
-            {errorMessage && (
-              <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <div>{errorMessage}</div>
-              </div>
-            )}
-
-            {/* Total Belanja */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs text-zinc-600">
-                <span>Total Ditagihkan:</span>
-                <span className="font-mono font-semibold text-zinc-950 text-base">
-                  {formatRupiah(totalAmountToPay)}
-                </span>
-              </div>
-
-              {/* Pilihan Metode Bayar */}
-              <div>
-                <label className="text-xs font-medium text-zinc-700 mb-1.5 block">
-                  Metode Pembayaran
-                </label>
-                <SelectField
-                  options={paymentMethods.map((m) => ({
-                    label: `${m.name} (${m.type === 'cash' ? 'Tunai' : 'Transfer'})`,
-                    value: m.id.toString(),
-                  }))}
-                  value={selectedMethodId}
-                  onChange={(e) => setSelectedMethodId(e.target.value)}
-                />
-              </div>
-
-              {/* Kalkulator Tunai Kasir */}
-              {isCash && (
-                <div className="p-3.5 bg-zinc-50 border border-zinc-200/80 rounded-xl space-y-2.5">
-                  <label className="text-xs font-medium text-zinc-900 block">
-                    Uang Diterima dari Wali/Siswa (Rp)
-                  </label>
-                  <InputField
-                    type="number"
-                    placeholder="0"
-                    value={cashGiven}
-                    onChange={(e) => setCashGiven(e.target.value)}
-                  />
-
-                  {/* Tombol Pintasan Uang Pas */}
-                  <div className="flex gap-1.5 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setCashGiven(totalAmountToPay.toString())}
-                      className="px-2 py-1 rounded-md bg-white border border-zinc-200 text-[11px] font-medium text-zinc-700 hover:border-emerald-500 cursor-pointer"
-                    >
-                      Uang Pas
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCashGiven((totalAmountToPay + 50000).toString())}
-                      className="px-2 py-1 rounded-md bg-white border border-zinc-200 text-[11px] font-medium text-zinc-700 hover:border-emerald-500 cursor-pointer"
-                    >
-                      +50rb
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCashGiven((totalAmountToPay + 100000).toString())}
-                      className="px-2 py-1 rounded-md bg-white border border-zinc-200 text-[11px] font-medium text-zinc-700 hover:border-emerald-500 cursor-pointer"
-                    >
-                      +100rb
-                    </button>
-                  </div>
-
-                  <div className="pt-2 border-t border-zinc-200/60 flex items-center justify-between text-xs">
-                    <span className="text-zinc-600">Kembalian:</span>
-                    <span
-                      className={`font-mono font-semibold ${
-                        isCashSufficient ? 'text-emerald-700' : 'text-rose-600'
-                      }`}
-                    >
-                      {formatRupiah(changeAmount)}
+                {/* Footer di bawah Tagihan: Ringkasan Cepat & Tombol Proses Pembayaran */}
+                <div className="mt-5 pt-4 border-t border-zinc-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-2.5 text-xs">
+                    <span className="text-zinc-500">Total Tagihan Dipilih:</span>
+                    <span className="font-mono font-bold text-emerald-700 text-lg">
+                      {formatRupiah(totalAmountToPay)}
+                    </span>
+                    <span className="text-[11px] font-mono text-zinc-400">
+                      ({selectedItemsList.length} tagihan)
                     </span>
                   </div>
-                </div>
-              )}
 
-              {/* Catatan / Keterangan */}
+                  {!isReadOnly ? (
+                    <Button
+                      variant="primary"
+                      size="md"
+                      disabled={totalAmountToPay <= 0}
+                      onClick={() => {
+                        setErrorMessage(null);
+                        setIsCheckoutModalOpen(true);
+                      }}
+                      className="w-full sm:w-auto px-6 cursor-pointer"
+                    >
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      <span>Proses Pembayaran</span>
+                    </Button>
+                  ) : (
+                    <div className="text-xs text-amber-700 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">
+                      Read-only (Kepala Sekolah)
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Modal Ringkasan & Pembayaran */}
+      <Modal
+        isOpen={isCheckoutModalOpen}
+        onClose={() => setIsCheckoutModalOpen(false)}
+        title="Ringkasan & Pembayaran"
+        description="Periksa kembali rincian pos tagihan dan tentukan metode pembayaran."
+        size="md"
+      >
+        <div className="space-y-4">
+          {errorMessage && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div>{errorMessage}</div>
+            </div>
+          )}
+
+          {/* Info Siswa */}
+          {selectedStudent && (
+            <div className="p-3 rounded-xl bg-zinc-50 border border-zinc-200 text-xs flex items-center justify-between">
+              <div>
+                <div className="font-semibold text-zinc-950">{selectedStudent.name}</div>
+                <div className="text-zinc-500 font-mono text-[11px] mt-0.5">
+                  NIS: {selectedStudent.nis} • Kelas: {selectedStudent.classroomName}
+                </div>
+              </div>
+              <Badge variant="paid" size="sm">
+                {selectedItemsList.length} Pos Tagihan
+              </Badge>
+            </div>
+          )}
+
+          {/* Rincian Pos Tagihan yang Dipilih */}
+          <div className="space-y-1.5 max-h-48 overflow-y-auto border border-zinc-200/80 rounded-xl p-3 bg-white">
+            <div className="text-[10px] uppercase font-mono text-zinc-400 font-semibold mb-1">
+              Daftar Pos Tagihan
+            </div>
+            {selectedItemsList.map((item) => (
+              <div
+                key={item.id}
+                className="flex justify-between items-center text-xs py-1 border-b border-zinc-100 last:border-b-0"
+              >
+                <span className="text-zinc-800 truncate mr-2">{item.title}</span>
+                <span className="font-mono font-semibold text-zinc-900 shrink-0">
+                  {formatRupiah(selectedItems[item.id]?.payAmount ?? item.remainingAmount)}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Total Pembayaran */}
+          <div className="flex items-center justify-between p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl">
+            <span className="text-xs font-medium text-emerald-900">Total Ditagihkan:</span>
+            <span className="font-mono font-bold text-emerald-700 text-lg">
+              {formatRupiah(totalAmountToPay)}
+            </span>
+          </div>
+
+          {/* Pilihan Metode Bayar */}
+          <div>
+            <label className="text-xs font-medium text-zinc-700 mb-1.5 block">
+              Metode Pembayaran
+            </label>
+            <SelectField
+              options={paymentMethods.map((m) => ({
+                label: `${m.name} (${m.type === 'cash' ? 'Tunai' : 'Transfer'})`,
+                value: m.id.toString(),
+              }))}
+              value={selectedMethodId}
+              onChange={(e) => setSelectedMethodId(e.target.value)}
+            />
+          </div>
+
+          {/* Kalkulator Tunai Kasir */}
+          {isCash && (
+            <div className="p-3.5 bg-zinc-50 border border-zinc-200/80 rounded-xl space-y-2.5">
+              <label className="text-xs font-medium text-zinc-900 block">
+                Uang Diterima dari Wali/Siswa (Rp)
+              </label>
               <InputField
-                label="Catatan Transaksi (Opsional)"
-                placeholder="Contoh: Titipan orang tua..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                type="number"
+                placeholder="0"
+                value={cashGiven}
+                onChange={(e) => setCashGiven(e.target.value)}
               />
 
-              {/* Submit Button */}
-              {!isReadOnly ? (
-                <Button
-                  variant="primary"
-                  size="md"
-                  className="w-full mt-4"
-                  disabled={
-                    !selectedStudent ||
-                    totalAmountToPay <= 0 ||
-                    (isCash && !isCashSufficient) ||
-                    isSubmitting
-                  }
-                  isLoading={isSubmitting}
-                  onClick={handleSubmitPayment}
+              {/* Tombol Pintasan Uang Pas */}
+              <div className="flex gap-1.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setCashGiven(totalAmountToPay.toString())}
+                  className="px-2 py-1 rounded-md bg-white border border-zinc-200 text-[11px] font-medium text-zinc-700 hover:border-emerald-500 cursor-pointer"
                 >
-                  <CreditCard className="w-4 h-4 mr-1.5" />
-                  <span>Proses Pembayaran Sekarang</span>
-                </Button>
-              ) : (
-                <div className="p-3 rounded-xl bg-amber-50 text-amber-800 text-xs text-center border border-amber-200">
-                  Kepala Sekolah tidak memiliki hak akses memproses kasir.
-                </div>
-              )}
+                  Uang Pas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCashGiven((totalAmountToPay + 50000).toString())}
+                  className="px-2 py-1 rounded-md bg-white border border-zinc-200 text-[11px] font-medium text-zinc-700 hover:border-emerald-500 cursor-pointer"
+                >
+                  +50rb
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCashGiven((totalAmountToPay + 100000).toString())}
+                  className="px-2 py-1 rounded-md bg-white border border-zinc-200 text-[11px] font-medium text-zinc-700 hover:border-emerald-500 cursor-pointer"
+                >
+                  +100rb
+                </button>
+              </div>
+
+              <div className="pt-2 border-t border-zinc-200/60 flex items-center justify-between text-xs">
+                <span className="text-zinc-600">Kembalian:</span>
+                <span
+                  className={`font-mono font-semibold ${
+                    isCashSufficient ? 'text-emerald-700' : 'text-rose-600'
+                  }`}
+                >
+                  {formatRupiah(changeAmount)}
+                </span>
+              </div>
             </div>
+          )}
+
+          {/* Catatan / Keterangan */}
+          <InputField
+            label="Catatan Transaksi (Opsional)"
+            placeholder="Contoh: Titipan orang tua..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-zinc-100">
+            <Button
+              variant="outline"
+              size="md"
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => setIsCheckoutModalOpen(false)}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              type="button"
+              disabled={
+                totalAmountToPay <= 0 ||
+                (isCash && !isCashSufficient) ||
+                isSubmitting
+              }
+              isLoading={isSubmitting}
+              onClick={handleSubmitPayment}
+            >
+              <CreditCard className="w-4 h-4 mr-1.5" />
+              <span>Konfirmasi & Bayar</span>
+            </Button>
           </div>
         </div>
-      </div>
+      </Modal>
 
       {/* Modal Resi / Kuitansi Pembayaran */}
       <Modal
