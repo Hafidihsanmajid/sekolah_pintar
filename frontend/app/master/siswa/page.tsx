@@ -1,16 +1,16 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { apiClient } from '@/lib/api-client';
-import { Student, Classroom, PaginatedData } from '@/types/api';
+import { Student, Classroom, AcademicYear, PaginatedData } from '@/types/api';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { InputField } from '@/components/ui/InputField';
 import { SelectField } from '@/components/ui/SelectField';
-import { UserPlus, Pencil, Trash2, Users, AlertTriangle } from 'lucide-react';
+import { UserPlus, Pencil, Trash2, AlertTriangle } from 'lucide-react';
 
 export default function MasterSiswaPage() {
   const { user } = useAuth();
@@ -18,8 +18,10 @@ export default function MasterSiswaPage() {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState('');
   const [selectedClassroomId, setSelectedClassroomId] = useState('');
   const [page, setPage] = useState(1);
   const [totalRows, setTotalRows] = useState(0);
@@ -44,6 +46,18 @@ export default function MasterSiswaPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
 
+  // Fetch Academic Years
+  const fetchAcademicYears = useCallback(async () => {
+    try {
+      const res = await apiClient.get<AcademicYear[]>('/academic-years');
+      if (res.success && res.data) {
+        setAcademicYears(res.data);
+      }
+    } catch {
+      // Handled
+    }
+  }, []);
+
   // Fetch Classrooms
   const fetchClassrooms = useCallback(async () => {
     try {
@@ -56,6 +70,36 @@ export default function MasterSiswaPage() {
     }
   }, []);
 
+  // Filtered Classrooms by selected Academic Year
+  const filteredClassrooms = useMemo(() => {
+    if (!selectedAcademicYearId) return classrooms;
+    return classrooms.filter((c) => c.academicYearId.toString() === selectedAcademicYearId);
+  }, [classrooms, selectedAcademicYearId]);
+
+  // Handler Tahun Ajaran Change
+  const handleAcademicYearChange = (yearId: string) => {
+    setSelectedAcademicYearId(yearId);
+    setPage(1);
+    if (yearId && selectedClassroomId) {
+      const currentClassroom = classrooms.find((c) => c.id.toString() === selectedClassroomId);
+      if (currentClassroom && currentClassroom.academicYearId.toString() !== yearId) {
+        setSelectedClassroomId('');
+      }
+    }
+  };
+
+  // Handler Classroom Change
+  const handleClassroomChange = (classroomId: string) => {
+    setSelectedClassroomId(classroomId);
+    setPage(1);
+    if (classroomId && !selectedAcademicYearId) {
+      const cls = classrooms.find((c) => c.id.toString() === classroomId);
+      if (cls) {
+        setSelectedAcademicYearId(cls.academicYearId.toString());
+      }
+    }
+  };
+
   // Fetch Students
   const fetchStudents = useCallback(async () => {
     setIsLoading(true);
@@ -65,6 +109,7 @@ export default function MasterSiswaPage() {
         perPage: 10,
       };
       if (searchQuery) params.search = searchQuery;
+      if (selectedAcademicYearId) params.academicYearId = selectedAcademicYearId;
       if (selectedClassroomId) params.classroomId = selectedClassroomId;
 
       const res = await apiClient.get<PaginatedData<Student>>('/students', { params });
@@ -77,11 +122,12 @@ export default function MasterSiswaPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, searchQuery, selectedClassroomId]);
+  }, [page, searchQuery, selectedAcademicYearId, selectedClassroomId]);
 
   useEffect(() => {
+    fetchAcademicYears();
     fetchClassrooms();
-  }, [fetchClassrooms]);
+  }, [fetchAcademicYears, fetchClassrooms]);
 
   useEffect(() => {
     fetchStudents();
@@ -208,9 +254,14 @@ export default function MasterSiswaPage() {
       key: 'classroomName',
       header: 'Kelas',
       render: (row) => (
-        <Badge variant="outline" size="sm">
-          {row.classroomName || 'Belum diatur'}
-        </Badge>
+        <div>
+          <Badge variant="outline" size="sm">
+            {row.classroomName || 'Belum diatur'}
+          </Badge>
+          {row.academicYearName && (
+            <div className="text-[11px] text-zinc-500 font-mono mt-0.5">{row.academicYearName}</div>
+          )}
+        </div>
       ),
     },
     {
@@ -293,21 +344,7 @@ export default function MasterSiswaPage() {
         )}
       </div>
 
-      {/* Filter Bar */}
-      <div className="flex flex-col sm:flex-row items-center gap-3">
-        <div className="w-full sm:w-64">
-          <SelectField
-            options={[
-              { label: 'Semua Kelas', value: '' },
-              ...classrooms.map((c) => ({ label: c.name, value: c.id.toString() })),
-            ]}
-            value={selectedClassroomId}
-            onChange={(e) => setSelectedClassroomId(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Data Table */}
+      {/* Data Table with Integrated Filters */}
       <DataTable
         columns={columns as unknown as Column<Record<string, unknown>>[]}
         data={students as unknown as Record<string, unknown>[]}
@@ -318,6 +355,51 @@ export default function MasterSiswaPage() {
           setPage(1);
         }}
         searchPlaceholder="Cari siswa berdasarkan NIS atau Nama..."
+        filterSlot={
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              aria-label="Filter Tahun Ajaran"
+              value={selectedAcademicYearId}
+              onChange={(e) => handleAcademicYearChange(e.target.value)}
+              className="h-8 px-2.5 py-1 text-xs bg-zinc-50 border border-zinc-200/90 rounded-lg text-zinc-900 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-600 transition cursor-pointer font-medium"
+            >
+              <option value="">Semua Tahun Ajaran</option>
+              {academicYears.map((y) => (
+                <option key={y.id} value={y.id.toString()}>
+                  {y.name} - {y.semester}{y.isActive ? ' (Aktif)' : ''}
+                </option>
+              ))}
+            </select>
+
+            <select
+              aria-label="Filter Kelas"
+              value={selectedClassroomId}
+              onChange={(e) => handleClassroomChange(e.target.value)}
+              className="h-8 px-2.5 py-1 text-xs bg-zinc-50 border border-zinc-200/90 rounded-lg text-zinc-900 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-600 transition cursor-pointer font-medium"
+            >
+              <option value="">Semua Kelas</option>
+              {filteredClassrooms.map((c) => (
+                <option key={c.id} value={c.id.toString()}>
+                  Kelas {c.name} {c.academicYearName ? `(${c.academicYearName})` : ''}
+                </option>
+              ))}
+            </select>
+
+            {(selectedAcademicYearId || selectedClassroomId) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedAcademicYearId('');
+                  setSelectedClassroomId('');
+                  setPage(1);
+                }}
+                className="h-8 px-2 py-1 text-xs text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition cursor-pointer font-medium"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        }
         page={page}
         totalRows={totalRows}
         perPage={10}
@@ -366,7 +448,10 @@ export default function MasterSiswaPage() {
               label="Pilihan Kelas"
               options={[
                 { label: '-- Pilih Kelas --', value: '' },
-                ...classrooms.map((c) => ({ label: c.name, value: c.id.toString() })),
+                ...classrooms.map((c) => ({
+                  label: c.academicYearName ? `${c.name} (${c.academicYearName})` : c.name,
+                  value: c.id.toString(),
+                })),
               ]}
               value={formData.classroomId}
               onChange={(e) => setFormData({ ...formData, classroomId: e.target.value })}

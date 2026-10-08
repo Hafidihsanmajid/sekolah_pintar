@@ -13,7 +13,7 @@ class StudentController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Student::with('classroom');
+        $query = Student::with(['classroom.academicYear']);
 
         if ($request->filled('search')) {
             $search = $request->input('search');
@@ -25,7 +25,13 @@ class StudentController extends Controller
             });
         }
 
-        if ($request->has('classroomId')) {
+        if ($request->filled('academicYearId')) {
+            $query->whereHas('classroom', function ($q) use ($request) {
+                $q->where('academic_year_id', $request->input('academicYearId'));
+            });
+        }
+
+        if ($request->filled('classroomId')) {
             $query->where('classroom_id', $request->input('classroomId'));
         }
 

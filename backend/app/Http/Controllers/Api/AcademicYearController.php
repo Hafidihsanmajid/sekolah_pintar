@@ -13,7 +13,7 @@ class AcademicYearController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = AcademicYear::withCount('classrooms')->orderBy('id', 'desc');
+        $query = AcademicYear::withCount('classrooms')->orderByDesc('is_active')->orderBy('name', 'desc');
 
         if ($request->has('isActive')) {
             $query->where('is_active', $request->boolean('isActive'));

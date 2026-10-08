@@ -17,6 +17,8 @@ class StudentResource extends JsonResource
             'classroomId' => $this->classroom_id,
             'classroomName' => $this->classroom?->name,
             'classroomLevel' => $this->classroom?->level,
+            'academicYearId' => $this->classroom?->academic_year_id,
+            'academicYearName' => $this->classroom?->academicYear?->name,
             'entryYear' => $this->entry_year,
             'isActive' => (bool) $this->is_active,
             'phoneNumber' => $this->phone_number,

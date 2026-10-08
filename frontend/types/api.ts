@@ -59,6 +59,8 @@ export interface Student {
   classroomId: number;
   classroomName?: string;
   classroomLevel?: string;
+  academicYearId?: number;
+  academicYearName?: string;
   entryYear: string;
   isActive: boolean;
   phoneNumber?: string | null;
