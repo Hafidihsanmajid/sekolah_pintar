@@ -51,7 +51,11 @@ axiosInstance.interceptors.response.use(
 
 // Type-safe HTTP Methods Helper
 export const apiClient = {
-  async get<T>(url: string, params?: Record<string, unknown>): Promise<ApiResponse<T>> {
+  async get<T>(url: string, paramsOrConfig?: Record<string, unknown>): Promise<ApiResponse<T>> {
+    const params =
+      paramsOrConfig && 'params' in paramsOrConfig && typeof paramsOrConfig.params === 'object'
+        ? (paramsOrConfig.params as Record<string, unknown>)
+        : paramsOrConfig;
     const response = await axiosInstance.get<ApiResponse<T>>(url, { params });
     return response.data;
   },
