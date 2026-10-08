@@ -14,6 +14,7 @@ import {
   School,
   Coins,
   ChevronDown,
+  Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -35,6 +36,15 @@ export interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   {
+    label: 'Master Data',
+    icon: Database,
+    children: [
+      { label: 'Data Siswa', href: '/master/siswa', icon: Users },
+      { label: 'Kelas & Tahun Ajaran', href: '/master/kelas', icon: School },
+      { label: 'Tarif Pembayaran', href: '/master/biaya', icon: Coins },
+    ],
+  },
+  {
     label: 'Transaksi Pembayaran',
     icon: CreditCard,
     children: [
@@ -42,9 +52,6 @@ const navItems: NavItem[] = [
       { label: 'Riwayat Transaksi', href: '/transaksi/riwayat', icon: Receipt },
     ],
   },
-  { label: 'Data Siswa', href: '/master/siswa', icon: Users },
-  { label: 'Kelas & Tahun Ajaran', href: '/master/kelas', icon: School },
-  { label: 'Tarif & Pembayaran', href: '/master/biaya', icon: Coins },
   { label: 'Laporan Keuangan', href: '/laporan', icon: FileSpreadsheet },
   { label: 'Pengaturan Sistem', href: '/pengaturan', icon: Settings },
 ];
@@ -52,6 +59,7 @@ const navItems: NavItem[] = [
 export function Sidebar() {
   const pathname = usePathname();
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
+    'Master Data': true,
     'Transaksi Pembayaran': true,
   });
 
