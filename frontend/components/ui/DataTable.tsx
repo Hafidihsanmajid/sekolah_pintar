@@ -20,6 +20,7 @@ export interface DataTableProps<T> {
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
   searchPlaceholder?: string;
+  filterSlot?: React.ReactNode;
   page?: number;
   totalRows?: number;
   perPage?: number;
@@ -37,6 +38,7 @@ export function DataTable<T extends Record<string, unknown>>({
   searchQuery,
   onSearchChange,
   searchPlaceholder = 'Cari data...',
+  filterSlot,
   page = 1,
   totalRows = data.length,
   perPage = 10,
@@ -50,19 +52,24 @@ export function DataTable<T extends Record<string, unknown>>({
 
   return (
     <div className={cn('bg-white rounded-2xl border border-zinc-200/80 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] overflow-hidden', className)}>
-      {onSearchChange ? (
-        <div className="p-4 border-b border-zinc-100 flex items-center justify-between gap-3">
-          <div className="relative w-full max-w-xs">
-            <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery || ''}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder={searchPlaceholder}
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-zinc-50/60 rounded-lg border border-zinc-200/80 text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500"
-            />
+      {onSearchChange || filterSlot ? (
+        <div className="p-4 border-b border-zinc-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+            {onSearchChange ? (
+              <div className="relative w-full sm:max-w-xs">
+                <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery || ''}
+                  onChange={(e) => onSearchChange(e.target.value)}
+                  placeholder={searchPlaceholder}
+                  className="w-full pl-9 pr-3 py-1.5 text-xs bg-zinc-50/60 rounded-lg border border-zinc-200/80 text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+            ) : null}
+            {filterSlot}
           </div>
-          <div className="text-xs text-zinc-400 font-mono">
+          <div className="text-xs text-zinc-400 font-mono shrink-0">
             {totalRows} entri
           </div>
         </div>

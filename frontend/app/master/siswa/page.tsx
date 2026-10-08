@@ -344,34 +344,7 @@ export default function MasterSiswaPage() {
         )}
       </div>
 
-      {/* Filter Bar */}
-      <div className="flex flex-col sm:flex-row items-center gap-3">
-        <div className="w-full sm:w-64">
-          <SelectField
-            options={[
-              { label: 'Semua Tahun Ajaran', value: '' },
-              ...academicYears.map((y) => ({
-                label: `${y.name} - ${y.semester}${y.isActive ? ' (Aktif)' : ''}`,
-                value: y.id.toString(),
-              })),
-            ]}
-            value={selectedAcademicYearId}
-            onChange={(e) => handleAcademicYearChange(e.target.value)}
-          />
-        </div>
-        <div className="w-full sm:w-64">
-          <SelectField
-            options={[
-              { label: 'Semua Kelas', value: '' },
-              ...filteredClassrooms.map((c) => ({ label: c.name, value: c.id.toString() })),
-            ]}
-            value={selectedClassroomId}
-            onChange={(e) => handleClassroomChange(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Data Table */}
+      {/* Data Table with Integrated Filters */}
       <DataTable
         columns={columns as unknown as Column<Record<string, unknown>>[]}
         data={students as unknown as Record<string, unknown>[]}
@@ -382,6 +355,51 @@ export default function MasterSiswaPage() {
           setPage(1);
         }}
         searchPlaceholder="Cari siswa berdasarkan NIS atau Nama..."
+        filterSlot={
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              aria-label="Filter Tahun Ajaran"
+              value={selectedAcademicYearId}
+              onChange={(e) => handleAcademicYearChange(e.target.value)}
+              className="h-8 px-2.5 py-1 text-xs bg-zinc-50 border border-zinc-200/90 rounded-lg text-zinc-900 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-600 transition cursor-pointer font-medium"
+            >
+              <option value="">Semua Tahun Ajaran</option>
+              {academicYears.map((y) => (
+                <option key={y.id} value={y.id.toString()}>
+                  {y.name} - {y.semester}{y.isActive ? ' (Aktif)' : ''}
+                </option>
+              ))}
+            </select>
+
+            <select
+              aria-label="Filter Kelas"
+              value={selectedClassroomId}
+              onChange={(e) => handleClassroomChange(e.target.value)}
+              className="h-8 px-2.5 py-1 text-xs bg-zinc-50 border border-zinc-200/90 rounded-lg text-zinc-900 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-600 transition cursor-pointer font-medium"
+            >
+              <option value="">Semua Kelas</option>
+              {filteredClassrooms.map((c) => (
+                <option key={c.id} value={c.id.toString()}>
+                  Kelas {c.name} {c.academicYearName ? `(${c.academicYearName})` : ''}
+                </option>
+              ))}
+            </select>
+
+            {(selectedAcademicYearId || selectedClassroomId) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedAcademicYearId('');
+                  setSelectedClassroomId('');
+                  setPage(1);
+                }}
+                className="h-8 px-2 py-1 text-xs text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition cursor-pointer font-medium"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        }
         page={page}
         totalRows={totalRows}
         perPage={10}
