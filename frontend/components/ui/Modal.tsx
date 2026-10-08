@@ -13,6 +13,7 @@ export interface ModalProps {
   footer?: React.ReactNode;
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl';
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl';
+  className?: string;
 }
 
 export function Modal({
@@ -24,6 +25,7 @@ export function Modal({
   footer,
   maxWidth,
   size,
+  className,
 }: ModalProps) {
   const resolvedWidth = size || maxWidth || 'md';
 
@@ -64,8 +66,9 @@ export function Modal({
       {/* Modal Dialog */}
       <div
         className={cn(
-          'relative w-full bg-surface border border-zinc-200/80 rounded-2xl shadow-2xl p-6 transition-all z-10',
-          maxWidthStyles[resolvedWidth]
+          'relative w-full bg-surface border border-zinc-200/80 rounded-2xl shadow-2xl p-6 transition-all z-10 max-h-[calc(100dvh-2rem)] overflow-y-auto',
+          maxWidthStyles[resolvedWidth],
+          className
         )}
       >
         <div className="flex items-start justify-between mb-4">

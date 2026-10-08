@@ -640,11 +640,12 @@ export default function KasirPage() {
         onClose={() => setIsCheckoutModalOpen(false)}
         title="Ringkasan & Pembayaran"
         description="Periksa kembali rincian pos tagihan dan tentukan metode pembayaran."
-        size="md"
+        size={isCash ? 'sm' : 'md'}
+        className={isCash ? 'p-4 sm:p-5' : undefined}
       >
-        <div className="space-y-4">
+        <div className={cn('space-y-4', isCash && 'space-y-2.5')}>
           {errorMessage && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               <div>{errorMessage}</div>
             </div>
@@ -652,10 +653,15 @@ export default function KasirPage() {
 
           {/* Info Siswa */}
           {selectedStudent && (
-            <div className="p-3 rounded-xl bg-zinc-50 border border-zinc-200 text-xs flex items-center justify-between">
+            <div
+              className={cn(
+                'rounded-xl bg-zinc-50 border border-zinc-200 text-xs flex items-center justify-between',
+                isCash ? 'p-2' : 'p-3'
+              )}
+            >
               <div>
-                <div className="font-semibold text-zinc-950">{selectedStudent.name}</div>
-                <div className="text-zinc-500 font-mono text-[11px] mt-0.5">
+                <div className="font-semibold text-zinc-950 text-xs">{selectedStudent.name}</div>
+                <div className="text-zinc-500 font-mono text-[10px] mt-0.5">
                   NIS: {selectedStudent.nis} • Kelas: {selectedStudent.classroomName}
                 </div>
               </div>
@@ -666,14 +672,19 @@ export default function KasirPage() {
           )}
 
           {/* Rincian Pos Tagihan yang Dipilih */}
-          <div className="space-y-1.5 max-h-48 overflow-y-auto border border-zinc-200/80 rounded-xl p-3 bg-white">
-            <div className="text-[10px] uppercase font-mono text-zinc-400 font-semibold mb-1">
+          <div
+            className={cn(
+              'overflow-y-auto border border-zinc-200/80 rounded-xl bg-white',
+              isCash ? 'max-h-20 p-2 space-y-1' : 'max-h-48 p-3 space-y-1.5'
+            )}
+          >
+            <div className="text-[10px] uppercase font-mono text-zinc-400 font-semibold mb-0.5">
               Daftar Pos Tagihan
             </div>
             {selectedItemsList.map((item) => (
               <div
                 key={item.id}
-                className="flex justify-between items-center text-xs py-1 border-b border-zinc-100 last:border-b-0"
+                className="flex justify-between items-center text-xs py-0.5 border-b border-zinc-100 last:border-b-0"
               >
                 <span className="text-zinc-800 truncate mr-2">{item.title}</span>
                 <span className="font-mono font-semibold text-zinc-900 shrink-0">
@@ -684,16 +695,26 @@ export default function KasirPage() {
           </div>
 
           {/* Total Pembayaran */}
-          <div className="flex items-center justify-between p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl">
+          <div
+            className={cn(
+              'flex items-center justify-between bg-emerald-50/70 border border-emerald-200 rounded-xl',
+              isCash ? 'p-2.5' : 'p-3.5'
+            )}
+          >
             <span className="text-xs font-medium text-emerald-900">Total Ditagihkan:</span>
-            <span className="font-mono font-bold text-emerald-700 text-lg">
+            <span
+              className={cn(
+                'font-mono font-bold text-emerald-700',
+                isCash ? 'text-base' : 'text-lg'
+              )}
+            >
               {formatRupiah(totalAmountToPay)}
             </span>
           </div>
 
           {/* Pilihan Metode Bayar */}
           <div>
-            <label className="text-xs font-medium text-zinc-700 mb-1.5 block">
+            <label className="text-xs font-medium text-zinc-700 mb-1 block">
               Metode Pembayaran
             </label>
             <SelectField
@@ -708,44 +729,47 @@ export default function KasirPage() {
 
           {/* Kalkulator Tunai Kasir */}
           {isCash && (
-            <div className="p-3.5 bg-zinc-50 border border-zinc-200/80 rounded-xl space-y-2.5">
-              <label className="text-xs font-medium text-zinc-900 block">
-                Uang Diterima dari Wali/Siswa (Rp)
-              </label>
+            <div className="p-2.5 bg-zinc-50 border border-zinc-200/80 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-medium text-zinc-900 block">
+                  Uang Diterima (Rp)
+                </label>
+                {/* Tombol Pintasan Uang Pas */}
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setCashGiven(totalAmountToPay.toString())}
+                    className="px-1.5 py-0.5 rounded bg-white border border-zinc-200 text-[10px] font-medium text-zinc-700 hover:border-emerald-500 cursor-pointer"
+                  >
+                    Uang Pas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCashGiven((totalAmountToPay + 50000).toString())}
+                    className="px-1.5 py-0.5 rounded bg-white border border-zinc-200 text-[10px] font-medium text-zinc-700 hover:border-emerald-500 cursor-pointer"
+                  >
+                    +50rb
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCashGiven((totalAmountToPay + 100000).toString())}
+                    className="px-1.5 py-0.5 rounded bg-white border border-zinc-200 text-[10px] font-medium text-zinc-700 hover:border-emerald-500 cursor-pointer"
+                  >
+                    +100rb
+                  </button>
+                </div>
+              </div>
+
               <InputField
                 type="number"
                 placeholder="0"
                 value={cashGiven}
                 onChange={(e) => setCashGiven(e.target.value)}
+                className="py-1 text-xs"
               />
 
-              {/* Tombol Pintasan Uang Pas */}
-              <div className="flex gap-1.5 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setCashGiven(totalAmountToPay.toString())}
-                  className="px-2 py-1 rounded-md bg-white border border-zinc-200 text-[11px] font-medium text-zinc-700 hover:border-emerald-500 cursor-pointer"
-                >
-                  Uang Pas
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCashGiven((totalAmountToPay + 50000).toString())}
-                  className="px-2 py-1 rounded-md bg-white border border-zinc-200 text-[11px] font-medium text-zinc-700 hover:border-emerald-500 cursor-pointer"
-                >
-                  +50rb
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCashGiven((totalAmountToPay + 100000).toString())}
-                  className="px-2 py-1 rounded-md bg-white border border-zinc-200 text-[11px] font-medium text-zinc-700 hover:border-emerald-500 cursor-pointer"
-                >
-                  +100rb
-                </button>
-              </div>
-
-              <div className="pt-2 border-t border-zinc-200/60 flex items-center justify-between text-xs">
-                <span className="text-zinc-600">Kembalian:</span>
+              <div className="pt-1.5 border-t border-zinc-200/60 flex items-center justify-between text-xs">
+                <span className="text-zinc-600 text-[11px]">Kembalian:</span>
                 <span
                   className={`font-mono font-semibold ${
                     isCashSufficient ? 'text-emerald-700' : 'text-rose-600'
@@ -763,13 +787,14 @@ export default function KasirPage() {
             placeholder="Contoh: Titipan orang tua..."
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
+            className={isCash ? 'py-1 text-xs' : undefined}
           />
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-zinc-100">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100">
             <Button
               variant="outline"
-              size="md"
+              size={isCash ? 'sm' : 'md'}
               type="button"
               disabled={isSubmitting}
               onClick={() => setIsCheckoutModalOpen(false)}
@@ -778,7 +803,7 @@ export default function KasirPage() {
             </Button>
             <Button
               variant="primary"
-              size="md"
+              size={isCash ? 'sm' : 'md'}
               type="button"
               disabled={
                 totalAmountToPay <= 0 ||
