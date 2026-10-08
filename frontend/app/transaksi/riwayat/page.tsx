@@ -17,6 +17,10 @@ import {
   AlertTriangle,
   GraduationCap,
   Eye,
+  Filter,
+  FileSpreadsheet,
+  RotateCcw,
+  Download,
 } from 'lucide-react';
 
 export default function RiwayatTransaksiPage() {
@@ -27,6 +31,11 @@ export default function RiwayatTransaksiPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [appliedStatusFilter, setAppliedStatusFilter] = useState('');
+  const [appliedStartDate, setAppliedStartDate] = useState('');
+  const [appliedEndDate, setAppliedEndDate] = useState('');
   const [page, setPage] = useState(1);
   const [totalRows, setTotalRows] = useState(0);
 
@@ -40,6 +49,17 @@ export default function RiwayatTransaksiPage() {
   const [voidReason, setVoidReason] = useState('');
   const [isVoidSubmitting, setIsVoidSubmitting] = useState(false);
   const [voidError, setVoidError] = useState<string | null>(null);
+
+  // Cetak Excel State
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
+  const [excelPreviewData, setExcelPreviewData] = useState<{
+    items: Payment[];
+    startDate: string;
+    endDate: string;
+    status: string;
+    totalAmount: number;
+  } | null>(null);
 
   const formatRupiah = (val: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -57,7 +77,9 @@ export default function RiwayatTransaksiPage() {
         perPage: 15,
       };
       if (searchQuery) params.search = searchQuery;
-      if (statusFilter) params.status = statusFilter;
+      if (appliedStatusFilter) params.status = appliedStatusFilter;
+      if (appliedStartDate) params.startDate = appliedStartDate;
+      if (appliedEndDate) params.endDate = appliedEndDate;
 
       const res = await apiClient.get<PaginatedData<Payment>>('/payments', { params });
       if (res.success && res.data) {
@@ -69,11 +91,216 @@ export default function RiwayatTransaksiPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, searchQuery, statusFilter]);
+  }, [page, searchQuery, appliedStatusFilter, appliedStartDate, appliedEndDate]);
 
   useEffect(() => {
     fetchPayments();
   }, [fetchPayments]);
+
+  const handleApplyFilter = () => {
+    setAppliedStatusFilter(statusFilter);
+    setAppliedStartDate(startDate);
+    setAppliedEndDate(endDate);
+    setPage(1);
+  };
+
+  const handleResetFilter = () => {
+    setStatusFilter('');
+    setStartDate('');
+    setEndDate('');
+    setAppliedStatusFilter('');
+    setAppliedStartDate('');
+    setAppliedEndDate('');
+    setPage(1);
+  };
+
+  const downloadExcelTable = (
+    items: Payment[],
+    periodStart: string,
+    periodEnd: string,
+    filterStatus: string
+  ) => {
+    const downloadDate = new Date().toLocaleString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const periodLabel =
+      periodStart && periodEnd
+        ? `${periodStart} s/d ${periodEnd}`
+        : periodStart
+        ? `Mulai ${periodStart}`
+        : periodEnd
+        ? `Sampai ${periodEnd}`
+        : 'Semua Periode';
+
+    const statusLabel =
+      filterStatus === 'completed'
+        ? 'Selesai (Lunas)'
+        : filterStatus === 'void'
+        ? 'Void (Dibatalkan)'
+        : 'Semua Status';
+
+    const totalLunas = items
+      .filter((i) => i.status === 'completed')
+      .reduce((sum, i) => sum + i.totalAmount, 0);
+
+    const grandTotal = items.reduce((sum, i) => sum + i.totalAmount, 0);
+
+    const tableRows = items
+      .map((item, index) => {
+        const formattedDate = new Date(item.paymentDate).toLocaleDateString('id-ID', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        const isCompleted = item.status === 'completed';
+
+        return `
+          <tr>
+            <td style="text-align: center; border: 1px solid #d1d5db; padding: 6px;">${index + 1}</td>
+            <td style="border: 1px solid #d1d5db; padding: 6px; mso-number-format:'\\@'; font-family: monospace;">${item.invoiceNumber}</td>
+            <td style="text-align: center; border: 1px solid #d1d5db; padding: 6px;">${formattedDate}</td>
+            <td style="border: 1px solid #d1d5db; padding: 6px; mso-number-format:'\\@'; font-family: monospace;">${item.studentNis}</td>
+            <td style="border: 1px solid #d1d5db; padding: 6px;">${item.studentName}</td>
+            <td style="border: 1px solid #d1d5db; padding: 6px; text-align: center;">${item.classroomName || '-'}</td>
+            <td style="border: 1px solid #d1d5db; padding: 6px;">${item.paymentMethodName}</td>
+            <td style="border: 1px solid #d1d5db; padding: 6px;">${item.cashierName}</td>
+            <td style="text-align: center; border: 1px solid #d1d5db; padding: 6px; font-weight: bold; color: ${isCompleted ? '#047857' : '#b91c1c'};">
+              ${isCompleted ? 'Selesai' : 'Void'}
+            </td>
+            <td style="text-align: right; border: 1px solid #d1d5db; padding: 6px; mso-number-format:'\\#\\,\\#\\#0'; font-family: monospace;">
+              ${item.totalAmount}
+            </td>
+          </tr>
+        `;
+      })
+      .join('');
+
+    const excelHtml = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" 
+            xmlns:x="urn:schemas-microsoft-com:office:excel" 
+            xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Riwayat Transaksi</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; }
+          .title { font-size: 15pt; font-weight: bold; text-align: center; color: #064e3b; }
+          .subtitle { font-size: 10pt; color: #4b5563; text-align: center; }
+          .meta-label { font-weight: bold; color: #374151; font-size: 10pt; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <tr><td colspan="10" class="title">LAPORAN RIWAYAT TRANSAKSI KASIR</td></tr>
+          <tr><td colspan="10" class="subtitle">SMK PINTAR BANGSA - SISTEM KEUANGAN SEKOLAH</td></tr>
+          <tr><td colspan="10"></td></tr>
+          <tr><td colspan="2" class="meta-label">Periode Transaksi:</td><td colspan="8">${periodLabel}</td></tr>
+          <tr><td colspan="2" class="meta-label">Status Transaksi:</td><td colspan="8">${statusLabel}</td></tr>
+          <tr><td colspan="2" class="meta-label">Tanggal Unduh:</td><td colspan="8">${downloadDate}</td></tr>
+          <tr><td colspan="2" class="meta-label">Total Data:</td><td colspan="8">${items.length} Transaksi</td></tr>
+          <tr><td colspan="10"></td></tr>
+        </table>
+
+        <table border="1" style="border-collapse: collapse; width: 100%;">
+          <thead>
+            <tr style="background-color: #059669; color: #ffffff; font-weight: bold;">
+              <th style="background-color: #059669; color: #ffffff; border: 1px solid #047857; padding: 8px; text-align: center; width: 45px;">No</th>
+              <th style="background-color: #059669; color: #ffffff; border: 1px solid #047857; padding: 8px; text-align: center; width: 140px;">No. Invoice</th>
+              <th style="background-color: #059669; color: #ffffff; border: 1px solid #047857; padding: 8px; text-align: center; width: 140px;">Tanggal Transaksi</th>
+              <th style="background-color: #059669; color: #ffffff; border: 1px solid #047857; padding: 8px; text-align: center; width: 100px;">NIS Siswa</th>
+              <th style="background-color: #059669; color: #ffffff; border: 1px solid #047857; padding: 8px; text-align: left; width: 180px;">Nama Siswa</th>
+              <th style="background-color: #059669; color: #ffffff; border: 1px solid #047857; padding: 8px; text-align: center; width: 100px;">Kelas</th>
+              <th style="background-color: #059669; color: #ffffff; border: 1px solid #047857; padding: 8px; text-align: left; width: 130px;">Saluran Bayar</th>
+              <th style="background-color: #059669; color: #ffffff; border: 1px solid #047857; padding: 8px; text-align: left; width: 130px;">Kasir</th>
+              <th style="background-color: #059669; color: #ffffff; border: 1px solid #047857; padding: 8px; text-align: center; width: 100px;">Status</th>
+              <th style="background-color: #059669; color: #ffffff; border: 1px solid #047857; padding: 8px; text-align: right; width: 130px;">Total Bayar (Rp)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows}
+            <tr style="background-color: #e5e7eb; font-weight: bold;">
+              <td colspan="9" style="text-align: right; border: 1px solid #9ca3af; padding: 8px;">TOTAL NOMINAL LUNAS:</td>
+              <td style="text-align: right; border: 1px solid #9ca3af; padding: 8px; mso-number-format:'\\#\\,\\#\\#0'; font-family: monospace;">${totalLunas}</td>
+            </tr>
+            <tr style="background-color: #f3f4f6; font-weight: bold;">
+              <td colspan="9" style="text-align: right; border: 1px solid #9ca3af; padding: 8px;">TOTAL NOMINAL KESELURUHAN:</td>
+              <td style="text-align: right; border: 1px solid #9ca3af; padding: 8px; mso-number-format:'\\#\\,\\#\\#0'; font-family: monospace;">${grandTotal}</td>
+            </tr>
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([excelHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const cleanStart = periodStart ? periodStart.replace(/-/g, '') : 'Semua';
+    const cleanEnd = periodEnd ? periodEnd.replace(/-/g, '') : 'Semua';
+    link.download = `Riwayat_Transaksi_${cleanStart}_sd_${cleanEnd}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      const currentStart = appliedStartDate || startDate;
+      const currentEnd = appliedEndDate || endDate;
+      const currentStatus = appliedStatusFilter || statusFilter;
+
+      const params: Record<string, string | number> = {
+        page: 1,
+        perPage: 10000,
+      };
+      if (searchQuery) params.search = searchQuery;
+      if (currentStatus) params.status = currentStatus;
+      if (currentStart) params.startDate = currentStart;
+      if (currentEnd) params.endDate = currentEnd;
+
+      const res = await apiClient.get<PaginatedData<Payment>>('/payments', { params });
+      const items = res.data?.items || [];
+      const totalAmount = items.reduce((sum, item) => sum + item.totalAmount, 0);
+
+      downloadExcelTable(items, currentStart, currentEnd, currentStatus);
+
+      setExcelPreviewData({
+        items,
+        startDate: currentStart,
+        endDate: currentEnd,
+        status: currentStatus,
+        totalAmount,
+      });
+      setIsExcelModalOpen(true);
+    } catch {
+      // Handled
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
 
   const handleOpenReceipt = async (paymentId: number) => {
     try {
@@ -237,8 +464,9 @@ export default function RiwayatTransaksiPage() {
       </div>
 
       {/* Filter Bar */}
-      <div className="flex flex-col sm:flex-row items-center gap-3">
-        <div className="w-full sm:w-48">
+      <div className="bg-white rounded-2xl border border-zinc-200/80 p-4 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] flex flex-wrap items-center gap-3">
+        {/* Dropdown Status */}
+        <div className="w-full sm:w-44">
           <SelectField
             options={[
               { label: 'Semua Status', value: '' },
@@ -248,6 +476,77 @@ export default function RiwayatTransaksiPage() {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           />
+        </div>
+
+        {/* Filter Dari Tanggal */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <span className="text-xs text-zinc-500 font-medium shrink-0">Dari:</span>
+          <div className="w-full sm:w-36">
+            <InputField
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleApplyFilter();
+              }}
+              className="py-1.5 text-xs font-mono"
+            />
+          </div>
+        </div>
+
+        {/* Filter Sampai Tanggal */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <span className="text-xs text-zinc-500 font-medium shrink-0">Sampai:</span>
+          <div className="w-full sm:w-36">
+            <InputField
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleApplyFilter();
+              }}
+              className="py-1.5 text-xs font-mono"
+            />
+          </div>
+        </div>
+
+        {/* Tombol Filter */}
+        <Button
+          variant="primary"
+          size="md"
+          onClick={handleApplyFilter}
+          isLoading={isLoading}
+          className="w-full sm:w-auto cursor-pointer"
+        >
+          <Filter className="w-3.5 h-3.5 mr-1.5" />
+          <span>Filter</span>
+        </Button>
+
+        {/* Tombol Reset */}
+        {(appliedStartDate || appliedEndDate || appliedStatusFilter || startDate || endDate || statusFilter) && (
+          <Button
+            variant="outline"
+            size="md"
+            onClick={handleResetFilter}
+            className="w-full sm:w-auto cursor-pointer text-zinc-600 hover:text-zinc-900"
+          >
+            <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+            <span>Reset</span>
+          </Button>
+        )}
+
+        {/* Tombol Cetak Excel */}
+        <div className="w-full sm:w-auto sm:ml-auto">
+          <Button
+            variant="outline"
+            size="md"
+            onClick={handleExportExcel}
+            isLoading={isExportingExcel}
+            className="w-full sm:w-auto cursor-pointer border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-600"
+          >
+            <FileSpreadsheet className="w-4 h-4 mr-1.5 text-emerald-600" />
+            <span>Cetak Excel</span>
+          </Button>
         </div>
       </div>
 
@@ -444,6 +743,160 @@ export default function RiwayatTransaksiPage() {
             </Button>
           </div>
         </div>
+      </Modal>
+      {/* Modal Pratinjau & Tabel Cetak Excel */}
+      <Modal
+        isOpen={isExcelModalOpen}
+        onClose={() => setIsExcelModalOpen(false)}
+        title="Tabel Hasil Cetak Excel Transaksi"
+        description="Pratinjau tabel laporan yang telah diekspor dan dicetak ke dalam format spreadsheet Excel."
+        size="3xl"
+      >
+        {excelPreviewData && (
+          <div className="space-y-4">
+            {/* Meta Info Banner */}
+            <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div>
+                <div className="font-semibold text-zinc-950 flex items-center gap-1.5">
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>File Excel Berhasil Digenerate</span>
+                </div>
+                <div className="text-zinc-600 text-[11px] mt-0.5 font-mono">
+                  Periode:{' '}
+                  {excelPreviewData.startDate && excelPreviewData.endDate
+                    ? `${excelPreviewData.startDate} s/d ${excelPreviewData.endDate}`
+                    : excelPreviewData.startDate
+                    ? `Mulai ${excelPreviewData.startDate}`
+                    : excelPreviewData.endDate
+                    ? `Sampai ${excelPreviewData.endDate}`
+                    : 'Semua Periode'}{' '}
+                  • Status:{' '}
+                  {excelPreviewData.status === 'completed'
+                    ? 'Selesai'
+                    : excelPreviewData.status === 'void'
+                    ? 'Void'
+                    : 'Semua Status'}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Badge variant="paid" size="sm">
+                  {excelPreviewData.items.length} Baris Transaksi
+                </Badge>
+              </div>
+            </div>
+
+            {/* Tabel Cetak Excel */}
+            <div className="border border-zinc-200 rounded-xl overflow-hidden shadow-xs">
+              <div className="max-h-72 overflow-y-auto overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-emerald-700 text-white font-medium sticky top-0 z-10">
+                    <tr>
+                      <th className="py-2 px-2.5 text-center w-10 border-b border-emerald-800">No</th>
+                      <th className="py-2 px-2.5 border-b border-emerald-800">No. Invoice</th>
+                      <th className="py-2 px-2.5 text-center border-b border-emerald-800">Tanggal</th>
+                      <th className="py-2 px-2.5 border-b border-emerald-800">Siswa / Rombel</th>
+                      <th className="py-2 px-2.5 border-b border-emerald-800">Saluran</th>
+                      <th className="py-2 px-2.5 border-b border-emerald-800">Kasir</th>
+                      <th className="py-2 px-2.5 text-center border-b border-emerald-800">Status</th>
+                      <th className="py-2 px-2.5 text-right border-b border-emerald-800">Total Bayar</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100 text-zinc-800 bg-white">
+                    {excelPreviewData.items.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center text-zinc-400">
+                          Tidak ada data transaksi pada filter ini.
+                        </td>
+                      </tr>
+                    ) : (
+                      excelPreviewData.items.map((row, idx) => (
+                        <tr key={row.id} className="hover:bg-zinc-50/80 transition-colors">
+                          <td className="py-2 px-2.5 text-center font-mono text-zinc-400 text-[11px]">
+                            {idx + 1}
+                          </td>
+                          <td className="py-2 px-2.5 font-mono font-medium text-zinc-950 text-[11px]">
+                            {row.invoiceNumber}
+                          </td>
+                          <td className="py-2 px-2.5 text-center text-zinc-500 text-[11px] font-mono">
+                            {new Date(row.paymentDate).toLocaleDateString('id-ID', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                            })}
+                          </td>
+                          <td className="py-2 px-2.5">
+                            <div className="font-medium text-zinc-900">{row.studentName}</div>
+                            <div className="text-[10px] text-zinc-400 font-mono">
+                              NIS: {row.studentNis} • {row.classroomName}
+                            </div>
+                          </td>
+                          <td className="py-2 px-2.5">
+                            <span className="text-[11px] text-zinc-600">
+                              {row.paymentMethodName}
+                            </span>
+                          </td>
+                          <td className="py-2 px-2.5 text-zinc-600 text-[11px]">
+                            {row.cashierName}
+                          </td>
+                          <td className="py-2 px-2.5 text-center">
+                            <Badge variant={row.status === 'completed' ? 'paid' : 'void'} size="sm">
+                              {row.status === 'completed' ? 'Selesai' : 'Void'}
+                            </Badge>
+                          </td>
+                          <td className="py-2 px-2.5 text-right font-mono font-semibold text-zinc-950 text-[11px]">
+                            {formatRupiah(row.totalAmount)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  {excelPreviewData.items.length > 0 && (
+                    <tfoot className="bg-zinc-50 border-t border-zinc-200 text-xs font-semibold text-zinc-950">
+                      <tr>
+                        <td colSpan={7} className="py-2.5 px-3 text-right text-zinc-600 font-medium">
+                          Total Keseluruhan:
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-emerald-700">
+                          {formatRupiah(excelPreviewData.totalAmount)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  downloadExcelTable(
+                    excelPreviewData.items,
+                    excelPreviewData.startDate,
+                    excelPreviewData.endDate,
+                    excelPreviewData.status
+                  )
+                }
+                className="cursor-pointer border-emerald-600/40 text-emerald-700 hover:bg-emerald-50"
+              >
+                <Download className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
+                <span>Unduh Ulang File Excel (.xls)</span>
+              </Button>
+
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setIsExcelModalOpen(false)}
+                className="cursor-pointer"
+              >
+                Tutup
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
