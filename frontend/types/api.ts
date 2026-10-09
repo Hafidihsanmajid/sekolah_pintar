@@ -35,7 +35,7 @@ export interface AuthSession {
 export interface AcademicYear {
   id: number;
   name: string;
-  semester: 'Ganjil' | 'Genap';
+  semester?: 'Ganjil' | 'Genap' | string;
   isActive: boolean;
   classroomsCount?: number;
   createdAt?: string;

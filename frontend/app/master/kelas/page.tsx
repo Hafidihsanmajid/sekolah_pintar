@@ -36,7 +36,6 @@ export default function MasterKelasPage() {
   const [editingYear, setEditingYear] = useState<AcademicYear | null>(null);
   const [yearForm, setYearForm] = useState({
     name: '2025/2026',
-    semester: 'Ganjil' as 'Ganjil' | 'Genap',
     isActive: true,
   });
   const [yearErrors, setYearErrors] = useState<Record<string, string>>({});
@@ -85,14 +84,14 @@ export default function MasterKelasPage() {
   // Academic Year Handlers
   const handleOpenCreateYear = () => {
     setEditingYear(null);
-    setYearForm({ name: '', semester: 'Ganjil', isActive: false });
+    setYearForm({ name: '', isActive: false });
     setYearErrors({});
     setIsYearModalOpen(true);
   };
 
   const handleOpenEditYear = (item: AcademicYear) => {
     setEditingYear(item);
-    setYearForm({ name: item.name, semester: item.semester, isActive: item.isActive });
+    setYearForm({ name: item.name, isActive: item.isActive });
     setYearErrors({});
     setIsYearModalOpen(true);
   };
@@ -106,10 +105,15 @@ export default function MasterKelasPage() {
 
     setIsYearSubmitting(true);
     try {
+      const payload = {
+        name: yearForm.name.trim(),
+        isActive: yearForm.isActive,
+      };
+
       if (editingYear) {
-        await apiClient.put(`/academic-years/${editingYear.id}`, yearForm);
+        await apiClient.put(`/academic-years/${editingYear.id}`, payload);
       } else {
-        await apiClient.post('/academic-years', yearForm);
+        await apiClient.post('/academic-years', payload);
       }
       setIsYearModalOpen(false);
       fetchData();
@@ -336,7 +340,6 @@ export default function MasterKelasPage() {
               <thead>
                 <tr className="border-b border-zinc-200 bg-zinc-50/75 text-zinc-600 font-medium">
                   <th className="py-3 px-4">Tahun Ajaran</th>
-                  <th className="py-3 px-4">Semester</th>
                   <th className="py-3 px-4">Total Rombel Kelas</th>
                   <th className="py-3 px-4">Status Kalender</th>
                   <th className="py-3 px-4 text-right">Aksi</th>
@@ -346,7 +349,6 @@ export default function MasterKelasPage() {
                 {academicYears.map((ay) => (
                   <tr key={ay.id} className="hover:bg-zinc-50/50 transition">
                     <td className="py-3 px-4 font-semibold text-zinc-950 font-mono">{ay.name}</td>
-                    <td className="py-3 px-4 text-zinc-700">{ay.semester}</td>
                     <td className="py-3 px-4 text-zinc-600 font-mono">
                       {ay.classroomsCount ?? 0} Kelas
                     </td>
@@ -377,7 +379,7 @@ export default function MasterKelasPage() {
                             variant="danger"
                             size="sm"
                             onClick={() => {
-                              setDeletingItem({ type: 'year', id: ay.id, name: `${ay.name} ${ay.semester}` });
+                              setDeletingItem({ type: 'year', id: ay.id, name: ay.name });
                               setDeleteError(null);
                               setIsDeleteModalOpen(true);
                             }}
@@ -438,7 +440,7 @@ export default function MasterKelasPage() {
             <SelectField
               label="Tahun Ajaran"
               options={academicYears.map((y) => ({
-                label: `${y.name} (${y.semester}) ${y.isActive ? '• Aktif' : ''}`,
+                label: `${y.name} ${y.isActive ? '• Aktif' : ''}`,
                 value: y.id.toString(),
               }))}
               value={classForm.academicYearId}
@@ -492,16 +494,6 @@ export default function MasterKelasPage() {
             onChange={(e) => setYearForm({ ...yearForm, name: e.target.value })}
             errorMessage={yearErrors.name}
             required
-          />
-
-          <SelectField
-            label="Semester"
-            options={[
-              { label: 'Ganjil', value: 'Ganjil' },
-              { label: 'Genap', value: 'Genap' },
-            ]}
-            value={yearForm.semester}
-            onChange={(e) => setYearForm({ ...yearForm, semester: e.target.value as 'Ganjil' | 'Genap' })}
           />
 
           <div className="flex items-center gap-2 p-3 border border-zinc-200 rounded-xl bg-zinc-50/50">
