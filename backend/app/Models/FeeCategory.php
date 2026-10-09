@@ -13,12 +13,14 @@ class FeeCategory extends Model
         'name',
         'type',
         'default_amount',
+        'due_date',
         'description',
         'is_active',
     ];
 
     protected $casts = [
         'default_amount' => 'integer',
+        'due_date' => 'date',
         'is_active' => 'boolean',
     ];
 }

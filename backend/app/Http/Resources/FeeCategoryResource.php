@@ -14,6 +14,7 @@ class FeeCategoryResource extends JsonResource
             'name' => $this->name,
             'type' => $this->type,
             'defaultAmount' => (int) $this->default_amount,
+            'dueDate' => $this->due_date?->format('Y-m-d'),
             'description' => $this->description,
             'isActive' => (bool) $this->is_active,
             'createdAt' => $this->created_at?->toISOString(),

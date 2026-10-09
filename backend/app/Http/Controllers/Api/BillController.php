@@ -123,7 +123,7 @@ class BillController extends Controller
                                 'amount' => $amount,
                                 'paid_amount' => 0,
                                 'status' => 'unpaid',
-                                'due_date' => $validated['due_date'] ?? null,
+                                'due_date' => $validated['due_date'] ?? $feeCategory->due_date?->format('Y-m-d') ?? null,
                             ]);
                             $createdCount++;
                         }
@@ -145,7 +145,7 @@ class BillController extends Controller
                             'amount' => $amount,
                             'paid_amount' => 0,
                             'status' => 'unpaid',
-                            'due_date' => $validated['due_date'] ?? null,
+                            'due_date' => $validated['due_date'] ?? $feeCategory->due_date?->format('Y-m-d') ?? null,
                         ]);
                         $createdCount++;
                     }
