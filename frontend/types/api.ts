@@ -72,6 +72,7 @@ export interface FeeCategory {
   id: number;
   name: string;
   type: 'monthly' | 'incidental';
+  level?: string | null;
   defaultAmount: number;
   dueDate?: string | null;
   description?: string | null;

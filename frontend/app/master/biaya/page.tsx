@@ -38,6 +38,7 @@ export default function MasterBiayaPage() {
   const [feeForm, setFeeForm] = useState({
     name: '',
     type: 'monthly' as 'monthly' | 'incidental',
+    level: 'all',
     defaultAmount: 0,
     dueDate: '',
     description: '',
@@ -105,6 +106,7 @@ export default function MasterBiayaPage() {
     setFeeForm({
       name: '',
       type: 'monthly',
+      level: 'all',
       defaultAmount: 350000,
       dueDate: '',
       description: '',
@@ -119,6 +121,7 @@ export default function MasterBiayaPage() {
     setFeeForm({
       name: item.name,
       type: item.type,
+      level: item.level || 'all',
       defaultAmount: item.defaultAmount,
       dueDate: item.dueDate || '',
       description: item.description || '',
@@ -144,6 +147,7 @@ export default function MasterBiayaPage() {
       const payload = {
         name: feeForm.name.trim(),
         type: feeForm.type,
+        level: feeForm.level || 'all',
         defaultAmount: feeForm.defaultAmount,
         dueDate: feeForm.dueDate || null,
         description: feeForm.description || null,
@@ -304,6 +308,7 @@ export default function MasterBiayaPage() {
                 <tr className="border-b border-zinc-200 bg-zinc-50/75 text-zinc-600 font-medium">
                   <th className="py-3 px-4">Nama Pos Biaya</th>
                   <th className="py-3 px-4">Tipe Biaya</th>
+                  <th className="py-3 px-4">Tingkat</th>
                   <th className="py-3 px-4 text-right">Tarif Standar</th>
                   <th className="py-3 px-4">Jatuh Tempo</th>
                   <th className="py-3 px-4">Keterangan</th>
@@ -318,6 +323,11 @@ export default function MasterBiayaPage() {
                     <td className="py-3 px-4">
                       <Badge variant={f.type === 'monthly' ? 'info' : 'warning'} size="sm">
                         {f.type === 'monthly' ? 'Bulanan (SPP)' : 'Insidental'}
+                      </Badge>
+                    </td>
+                    <td className="py-3 px-4">
+                      <Badge variant="neutral" size="sm">
+                        {f.level === '10' ? 'Kelas 10' : f.level === '11' ? 'Kelas 11' : f.level === '12' ? 'Kelas 12' : 'Semua'}
                       </Badge>
                     </td>
                     <td className="py-3 px-4 text-right font-mono font-medium text-zinc-950">
@@ -478,6 +488,18 @@ export default function MasterBiayaPage() {
               required
             />
           </div>
+
+          <SelectField
+            label="Tingkat"
+            options={[
+              { label: 'Semua Tingkat (Kelas 10, 11, 12)', value: 'all' },
+              { label: 'Kelas 10', value: '10' },
+              { label: 'Kelas 11', value: '11' },
+              { label: 'Kelas 12', value: '12' },
+            ]}
+            value={feeForm.level}
+            onChange={(e) => setFeeForm({ ...feeForm, level: e.target.value })}
+          />
 
           <InputField
             label="Tanggal Jatuh Tempo"

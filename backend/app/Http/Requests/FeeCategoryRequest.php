@@ -33,6 +33,7 @@ class FeeCategoryRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:100'],
             'type' => ['required', 'string', 'in:monthly,incidental'],
+            'level' => ['nullable', 'string', 'max:20'],
             'default_amount' => ['required', 'integer', 'min:0'],
             'due_date' => ['nullable', 'date'],
             'description' => ['nullable', 'string'],

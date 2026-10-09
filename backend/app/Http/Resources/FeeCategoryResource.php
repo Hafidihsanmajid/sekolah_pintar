@@ -13,6 +13,7 @@ class FeeCategoryResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'type' => $this->type,
+            'level' => $this->level ?? 'all',
             'defaultAmount' => (int) $this->default_amount,
             'dueDate' => $this->due_date?->format('Y-m-d'),
             'description' => $this->description,
