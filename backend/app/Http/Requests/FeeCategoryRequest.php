@@ -17,6 +17,9 @@ class FeeCategoryRequest extends FormRequest
         if ($this->has('defaultAmount')) {
             $mergeData['default_amount'] = $this->input('defaultAmount');
         }
+        if ($this->has('dueDate')) {
+            $mergeData['due_date'] = $this->input('dueDate') ?: null;
+        }
         if ($this->has('isActive')) {
             $mergeData['is_active'] = $this->boolean('isActive');
         }
@@ -31,6 +34,7 @@ class FeeCategoryRequest extends FormRequest
             'name' => ['required', 'string', 'max:100'],
             'type' => ['required', 'string', 'in:monthly,incidental'],
             'default_amount' => ['required', 'integer', 'min:0'],
+            'due_date' => ['nullable', 'date'],
             'description' => ['nullable', 'string'],
             'is_active' => ['nullable', 'boolean'],
         ];

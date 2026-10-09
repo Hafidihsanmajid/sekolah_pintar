@@ -39,6 +39,7 @@ export default function MasterBiayaPage() {
     name: '',
     type: 'monthly' as 'monthly' | 'incidental',
     defaultAmount: 0,
+    dueDate: '',
     description: '',
     isActive: true,
   });
@@ -105,6 +106,7 @@ export default function MasterBiayaPage() {
       name: '',
       type: 'monthly',
       defaultAmount: 350000,
+      dueDate: '',
       description: '',
       isActive: true,
     });
@@ -118,6 +120,7 @@ export default function MasterBiayaPage() {
       name: item.name,
       type: item.type,
       defaultAmount: item.defaultAmount,
+      dueDate: item.dueDate || '',
       description: item.description || '',
       isActive: item.isActive,
     });
@@ -138,10 +141,19 @@ export default function MasterBiayaPage() {
 
     setIsFeeSubmitting(true);
     try {
+      const payload = {
+        name: feeForm.name.trim(),
+        type: feeForm.type,
+        defaultAmount: feeForm.defaultAmount,
+        dueDate: feeForm.dueDate || null,
+        description: feeForm.description || null,
+        isActive: feeForm.isActive,
+      };
+
       if (editingFee) {
-        await apiClient.put(`/fee-categories/${editingFee.id}`, feeForm);
+        await apiClient.put(`/fee-categories/${editingFee.id}`, payload);
       } else {
-        await apiClient.post('/fee-categories', feeForm);
+        await apiClient.post('/fee-categories', payload);
       }
       setIsFeeModalOpen(false);
       fetchData();
@@ -293,6 +305,7 @@ export default function MasterBiayaPage() {
                   <th className="py-3 px-4">Nama Pos Biaya</th>
                   <th className="py-3 px-4">Tipe Biaya</th>
                   <th className="py-3 px-4 text-right">Tarif Standar</th>
+                  <th className="py-3 px-4">Jatuh Tempo</th>
                   <th className="py-3 px-4">Keterangan</th>
                   <th className="py-3 px-4 text-center">Status</th>
                   <th className="py-3 px-4 text-right">Aksi</th>
@@ -309,6 +322,9 @@ export default function MasterBiayaPage() {
                     </td>
                     <td className="py-3 px-4 text-right font-mono font-medium text-zinc-950">
                       {formatRupiah(f.defaultAmount)}
+                    </td>
+                    <td className="py-3 px-4 text-zinc-600 font-mono">
+                      {f.dueDate ? new Date(f.dueDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
                     </td>
                     <td className="py-3 px-4 text-zinc-500 max-w-xs truncate">{f.description || '-'}</td>
                     <td className="py-3 px-4 text-center">
@@ -462,6 +478,14 @@ export default function MasterBiayaPage() {
               required
             />
           </div>
+
+          <InputField
+            label="Tanggal Jatuh Tempo"
+            type="date"
+            value={feeForm.dueDate}
+            onChange={(e) => setFeeForm({ ...feeForm, dueDate: e.target.value })}
+            errorMessage={feeErrors.dueDate}
+          />
 
           <InputField
             label="Keterangan / Rincian Alokasi"
