@@ -12,6 +12,7 @@ class FeeCategory extends Model
     protected $fillable = [
         'name',
         'type',
+        'level',
         'default_amount',
         'due_date',
         'description',
@@ -23,4 +24,9 @@ class FeeCategory extends Model
         'due_date' => 'date',
         'is_active' => 'boolean',
     ];
+
+    public function bills(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Bill::class);
+    }
 }
