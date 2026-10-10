@@ -57,7 +57,8 @@ const navItems: NavItem[] = [
     label: 'Keuangan',
     icon: Wallet,
     children: [
-      { label: 'Laporan Keuangan', href: '/laporan', icon: FileSpreadsheet },
+      { label: 'Laporan Uang Masuk', href: '/laporan', icon: FileSpreadsheet },
+      { label: 'Laporan Uang Keluar', href: '/keuangan/uang-keluar', icon: Receipt },
     ],
   },
   { label: 'Pengaturan Sistem', href: '/pengaturan', icon: Settings },
