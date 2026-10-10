@@ -71,6 +71,7 @@ const navItems: NavItem[] = [
     icon: Wallet,
     permissionKey: 'keuangan',
     children: [
+      { label: 'Input Uang Masuk', href: '/keuangan/input-uang-masuk', icon: PlusCircle },
       { label: 'Input Uang Keluar', href: '/keuangan/input-uang-keluar', icon: PlusCircle },
       { label: 'Laporan Uang Masuk', href: '/laporan', icon: FileSpreadsheet },
       { label: 'Laporan Uang Keluar', href: '/keuangan/uang-keluar', icon: Receipt },

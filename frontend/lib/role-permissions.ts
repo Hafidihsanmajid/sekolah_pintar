@@ -31,8 +31,8 @@ export const SYSTEM_MENUS: MenuConfig[] = [
   {
     key: 'keuangan',
     label: 'Keuangan',
-    description: 'Akses input kas keluar, laporan uang masuk, dan laporan uang keluar',
-    subMenus: ['Input Uang Keluar', 'Laporan Uang Masuk', 'Laporan Uang Keluar'],
+    description: 'Akses input kas keluar, input uang masuk, laporan uang masuk, dan laporan uang keluar',
+    subMenus: ['Input Uang Masuk', 'Input Uang Keluar', 'Laporan Uang Masuk', 'Laporan Uang Keluar'],
   },
   {
     key: 'pengaturan',

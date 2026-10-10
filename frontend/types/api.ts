@@ -267,3 +267,16 @@ export interface ExpenseItem {
   notes?: string;
   createdAt?: string;
 }
+
+export interface IncomeItem {
+  id: number;
+  invoiceNumber: string;
+  title: string;
+  category: string;
+  source: string;
+  purpose: string;
+  amount: number;
+  date: string;
+  notes?: string;
+  createdAt?: string;
+}
