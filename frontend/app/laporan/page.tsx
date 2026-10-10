@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { apiClient } from '@/lib/api-client';
 import {
   DailyCashReport,
@@ -8,7 +9,12 @@ import {
   ReconciliationReport,
   Classroom,
   AcademicYear,
+  IncomeItem,
 } from '@/types/api';
+import {
+  INCOME_STORAGE_KEY,
+  INITIAL_INCOMES,
+} from '@/lib/incomes';
 import { StatCard } from '@/components/ui/StatCard';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -23,6 +29,8 @@ import {
   Receipt,
   Building2,
   Calendar,
+  PlusCircle,
+  Trash2,
 } from 'lucide-react';
 
 export default function LaporanPage() {
@@ -46,6 +54,56 @@ export default function LaporanPage() {
   // Reconciliation State
   const [reconReport, setReconReport] = useState<ReconciliationReport | null>(null);
   const [isLoadingRecon, setIsLoadingRecon] = useState(false);
+
+  // Incomes State (Uang Masuk Non-Kasir)
+  const [incomes, setIncomes] = useState<IncomeItem[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(INCOME_STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      } catch {
+        // Fallback
+      }
+    }
+    return INITIAL_INCOMES;
+  });
+
+  const [transactionSourceFilter, setTransactionSourceFilter] = useState<'all' | 'cashier' | 'other'>('all');
+
+  useEffect(() => {
+    const handleStorage = () => {
+      try {
+        const stored = localStorage.getItem(INCOME_STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            setIncomes(parsed);
+          }
+        }
+      } catch {
+        // Ignored
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
+  const handleDeleteIncome = (id: number, inv: string) => {
+    if (confirm(`Apakah Anda yakin ingin menghapus data uang masuk ${inv}?`)) {
+      const updated = incomes.filter((item) => item.id !== id);
+      setIncomes(updated);
+      try {
+        localStorage.setItem(INCOME_STORAGE_KEY, JSON.stringify(updated));
+      } catch {
+        // Ignored
+      }
+    }
+  };
 
   const formatRupiah = (val: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -222,9 +280,112 @@ export default function LaporanPage() {
     loadArrearsReport(selectedAcademicYearId, selectedClassroomId);
   };
 
-  // Cetak Excel: HANYA tampilkan rincian riwayat transaksi pembayaran lengkap
+  // Perhitungan Data Uang Masuk Non-Kasir
+  const filteredIncomes = useMemo(() => {
+    return incomes.filter((item) => {
+      if (!startDate && !endDate) return true;
+      const itemDate = item.date;
+      if (startDate && itemDate < startDate) return false;
+      if (endDate && itemDate > endDate) return false;
+      return true;
+    });
+  }, [incomes, startDate, endDate]);
+
+  const nonKasirTotalAmount = useMemo(() => {
+    return filteredIncomes.reduce((acc, curr) => acc + curr.amount, 0);
+  }, [filteredIncomes]);
+
+  const nonKasirCashAmount = useMemo(() => {
+    return filteredIncomes
+      .filter((i) => i.notes?.toLowerCase().includes('tunai') || i.notes?.toLowerCase().includes('kas'))
+      .reduce((acc, curr) => acc + curr.amount, 0);
+  }, [filteredIncomes]);
+
+  const nonKasirTransferAmount = useMemo(() => {
+    return nonKasirTotalAmount - nonKasirCashAmount;
+  }, [nonKasirTotalAmount, nonKasirCashAmount]);
+
+  const grandTotalAmount = (cashReport?.summary.totalOverall ?? 0) + nonKasirTotalAmount;
+  const grandTotalCash = (cashReport?.summary.totalCash ?? 0) + nonKasirCashAmount;
+  const grandTotalTransfer = (cashReport?.summary.totalTransfer ?? 0) + nonKasirTransferAmount;
+
+  // Breakdown Pos Uang Masuk Non-Kasir per Kategori
+  const groupedIncomesByCategory = useMemo(() => {
+    const map = new Map<string, { totalAmount: number; count: number }>();
+    filteredIncomes.forEach((item) => {
+      const cat = item.category || 'Lain-lain';
+      const existing = map.get(cat) || { totalAmount: 0, count: 0 };
+      existing.totalAmount += item.amount;
+      existing.count += 1;
+      map.set(cat, existing);
+    });
+    return Array.from(map.entries()).map(([categoryName, data]) => ({
+      categoryName,
+      totalAmount: data.totalAmount,
+      count: data.count,
+    }));
+  }, [filteredIncomes]);
+
+  // Unified Transactions List for Table
+  const unifiedTransactions = useMemo(() => {
+    const list: Array<{
+      id: string;
+      invoiceNumber: string;
+      date: string;
+      title: string;
+      subtitle: string;
+      category: string;
+      channel: string;
+      officer: string;
+      amount: number;
+      status: 'completed' | 'void';
+      sourceType: 'cashier' | 'other';
+      rawIncomeId?: number;
+    }> = [];
+
+    if (transactionSourceFilter === 'all' || transactionSourceFilter === 'cashier') {
+      (cashReport?.transactions || []).forEach((tx) => {
+        list.push({
+          id: `cashier-${tx.id}`,
+          invoiceNumber: tx.invoiceNumber,
+          date: tx.date,
+          title: tx.studentName || 'Siswa',
+          subtitle: tx.classroomName || 'Kelas Siswa',
+          category: 'Iuran Siswa',
+          channel: tx.methodName,
+          officer: tx.cashierName || 'Kasir TU',
+          amount: tx.totalAmount,
+          status: tx.status,
+          sourceType: 'cashier',
+        });
+      });
+    }
+
+    if (transactionSourceFilter === 'all' || transactionSourceFilter === 'other') {
+      filteredIncomes.forEach((item) => {
+        list.push({
+          id: `income-${item.id}`,
+          invoiceNumber: item.invoiceNumber,
+          date: item.date,
+          title: item.title,
+          subtitle: `Sumber: ${item.source}`,
+          category: item.category,
+          channel: item.notes || 'Transfer Bank',
+          officer: 'Tata Usaha (Non-Kasir)',
+          amount: item.amount,
+          status: 'completed',
+          sourceType: 'other',
+          rawIncomeId: item.id,
+        });
+      });
+    }
+
+    return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [cashReport, filteredIncomes, transactionSourceFilter]);
+
+  // Cetak Excel: Menampilkan rincian seluruh riwayat uang masuk lengkap (Kasir Siswa & Non-Kasir)
   const exportCashReportToExcel = () => {
-    if (!cashReport) return;
+    if (!cashReport && filteredIncomes.length === 0) return;
 
     const academicYearLabel = activeAcademicYear
       ? `${activeAcademicYear.name} (${activeAcademicYear.semester})`
@@ -232,10 +393,44 @@ export default function LaporanPage() {
 
     const safeVal = (v: number | undefined | null) => (v ?? 0).toLocaleString('id-ID');
 
-    const transactions = cashReport.transactions || [];
-    const totalAmount = transactions
+    const cashierRows = (cashReport?.transactions || [])
       .filter((t) => t.status === 'completed')
-      .reduce((sum, t) => sum + t.totalAmount, 0);
+      .map((tx) => ({
+        invoiceNumber: tx.invoiceNumber,
+        date: new Date(tx.date).toLocaleDateString('id-ID', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        title: tx.studentName ?? '-',
+        source: tx.classroomName ?? '-',
+        category: 'Iuran Siswa',
+        channel: tx.methodName ?? '-',
+        officer: tx.cashierName ?? '-',
+        type: 'Kasir Siswa',
+        amount: tx.totalAmount,
+        status: 'Selesai',
+      }));
+
+    const incomeRows = filteredIncomes.map((inc) => ({
+      invoiceNumber: inc.invoiceNumber,
+      date: inc.date,
+      title: inc.title,
+      source: inc.source,
+      category: inc.category,
+      channel: inc.notes || '-',
+      officer: 'Tata Usaha (Non-Kasir)',
+      type: 'Uang Masuk Non-Kasir',
+      amount: inc.amount,
+      status: 'Selesai',
+    }));
+
+    const allExportRows = [...cashierRows, ...incomeRows].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    const totalAmount = allExportRows.reduce((sum, r) => sum + r.amount, 0);
 
     const html = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
@@ -254,57 +449,54 @@ export default function LaporanPage() {
         </style>
       </head>
       <body>
-        <div class="title">LAPORAN RINCIAN RIWAYAT TRANSAKSI PEMBAYARAN</div>
+        <div class="title">LAPORAN RINCIAN PENERIMAAN UANG MASUK & KAS HARIAN</div>
         <div class="meta"><strong>Sistem ERP Pembayaran Sekolah</strong></div>
         <div class="meta">Periode: ${startDate} s/d ${endDate} | Tahun Ajaran: ${academicYearLabel}</div>
-        <div class="meta">Total Data: ${transactions.length} Invoice | Dicetak: ${new Date().toLocaleString('id-ID')}</div>
+        <div class="meta">Total Data: ${allExportRows.length} Transaksi | Dicetak: ${new Date().toLocaleString('id-ID')}</div>
         <br/>
 
-        <!-- HANYA TABEL RINCIAN RIWAYAT TRANSAKSI PEMBAYARAN -->
         <table>
           <thead>
             <tr>
               <th style="width: 40px;" class="text-center">No</th>
               <th>No. Invoice</th>
               <th>Tanggal & Waktu</th>
-              <th>Nama Siswa</th>
-              <th>Kelas</th>
-              <th>Saluran Pembayaran</th>
-              <th>Petugas Kasir</th>
+              <th>Subjek / Nama Penerimaan</th>
+              <th>Asal Dana / Kelas</th>
+              <th>Kategori / Pos Dana</th>
+              <th>Saluran Kas</th>
+              <th>Petugas / Kasir</th>
+              <th>Tipe Sumber</th>
               <th style="text-align: right;">Nominal (Rp)</th>
               <th class="text-center">Status</th>
             </tr>
           </thead>
           <tbody>
             ${
-              transactions.length > 0
-                ? transactions
+              allExportRows.length > 0
+                ? allExportRows
                     .map(
                       (tx, i) => `
                   <tr>
                     <td class="text-center">${i + 1}</td>
                     <td><strong>${tx.invoiceNumber}</strong></td>
-                    <td>${new Date(tx.date).toLocaleDateString('id-ID', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}</td>
-                    <td>${tx.studentName ?? '-'}</td>
-                    <td>${tx.classroomName ?? '-'}</td>
-                    <td>${tx.methodName ?? '-'}</td>
-                    <td>${tx.cashierName ?? '-'}</td>
-                    <td class="num">${safeVal(tx.totalAmount)}</td>
-                    <td class="text-center">${tx.status === 'completed' ? 'Selesai' : 'Void'}</td>
+                    <td>${tx.date}</td>
+                    <td>${tx.title}</td>
+                    <td>${tx.source}</td>
+                    <td>${tx.category}</td>
+                    <td>${tx.channel}</td>
+                    <td>${tx.officer}</td>
+                    <td>${tx.type}</td>
+                    <td class="num">${safeVal(tx.amount)}</td>
+                    <td class="text-center">${tx.status}</td>
                   </tr>
                 `
                     )
                     .join('')
-                : `<tr><td colspan="9" class="text-center">Tidak ada transaksi pembayaran pada periode ini.</td></tr>`
+                : `<tr><td colspan="11" class="text-center">Tidak ada transaksi uang masuk pada periode ini.</td></tr>`
             }
             <tr class="total-row">
-              <td colspan="7" class="text-center"><strong>TOTAL PENERIMAAN</strong></td>
+              <td colspan="9" class="text-center"><strong>TOTAL SELURUH PENERIMAAN UANG MASUK</strong></td>
               <td class="num"><strong>${safeVal(totalAmount)}</strong></td>
               <td></td>
             </tr>
@@ -320,7 +512,7 @@ export default function LaporanPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Riwayat_Transaksi_Pembayaran_${startDate}_sd_${endDate}.xls`;
+    link.download = `Laporan_Uang_Masuk_${startDate}_sd_${endDate}.xls`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -334,7 +526,7 @@ export default function LaporanPage() {
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-xl font-semibold text-zinc-950 tracking-tight">
-              Laporan & Rekonsiliasi Keuangan
+              Laporan Uang Masuk & Rekonsiliasi
             </h1>
             {activeAcademicYear && (
               <Badge variant="paid" size="sm" className="hidden sm:inline-flex">
@@ -343,11 +535,23 @@ export default function LaporanPage() {
             )}
           </div>
           <p className="text-xs text-steel mt-0.5">
-            Audit penerimaan kasir, monitoring tunggakan iuran siswa, dan pencocokan mutasi bank pada periode tahun ajaran aktif.
+            Audit penerimaan kasir siswa, pencatatan bantuan pemerintah/dana masuk lain, monitoring tunggakan, dan mutasi kas/bank.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          <Link href="/keuangan/input-uang-masuk">
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              className="cursor-pointer"
+            >
+              <PlusCircle className="w-3.5 h-3.5 mr-1" />
+              <span>Input Uang Masuk</span>
+            </Button>
+          </Link>
+
           <Button
             type="button"
             variant="outline"
@@ -383,7 +587,7 @@ export default function LaporanPage() {
           }`}
         >
           <Receipt className="w-4 h-4" />
-          <span>Arus Kas & Bank Harian</span>
+          <span>Laporan Uang Masuk & Kas Harian</span>
         </button>
 
         <button
@@ -413,7 +617,7 @@ export default function LaporanPage() {
         </button>
       </div>
 
-      {/* TAB 1: ARUS KAS & BANK HARIAN */}
+      {/* TAB 1: ARUS KAS & BANK HARIAN (LAPORAN UANG MASUK) */}
       {activeTab === 'cash' && (
         <div className="space-y-6">
           {/* Filter Periode */}
@@ -468,7 +672,7 @@ export default function LaporanPage() {
               size="sm"
               onClick={exportCashReportToExcel}
               className="border-emerald-300 text-emerald-800 hover:bg-emerald-50 cursor-pointer"
-              title="Cetak rincian riwayat transaksi pembayaran ke file Excel"
+              title="Cetak rincian seluruh riwayat uang masuk ke file Excel"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 mr-1 text-emerald-600" />
               <span>Cetak Excel</span>
@@ -478,21 +682,21 @@ export default function LaporanPage() {
           {/* KPI Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <StatCard
-              title="Total Penerimaan Periode"
-              value={formatRupiah(cashReport?.summary.totalOverall ?? 0)}
-              subtitle={`${cashReport?.summary.completedCount ?? 0} transaksi berhasil`}
+              title="Total Seluruh Uang Masuk"
+              value={formatRupiah(grandTotalAmount)}
+              subtitle={`${(cashReport?.summary.completedCount ?? 0) + filteredIncomes.length} transaksi (${filteredIncomes.length} non-kasir)`}
               icon={<TrendingUp className="w-4 h-4 text-emerald-600" />}
             />
             <StatCard
-              title="Kas Fisik Tunai (Kasir TU)"
-              value={formatRupiah(cashReport?.summary.totalCash ?? 0)}
-              subtitle="Uang tunai siap disetor ke bendahara"
+              title="Kas Fisik Tunai (Kasir & TU)"
+              value={formatRupiah(grandTotalCash)}
+              subtitle="Penerimaan tunai siap disetor ke bendahara"
               icon={<Receipt className="w-4 h-4 text-emerald-600" />}
             />
             <StatCard
               title="Penerimaan Transfer Bank"
-              value={formatRupiah(cashReport?.summary.totalTransfer ?? 0)}
-              subtitle="Masuk langsung ke rekening sekolah"
+              value={formatRupiah(grandTotalTransfer)}
+              subtitle="Transfer kasir & bantuan BOS / pemerintah"
               icon={<Building2 className="w-4 h-4 text-blue-600" />}
             />
           </div>
@@ -521,20 +725,36 @@ export default function LaporanPage() {
               </div>
             </div>
 
-            {/* Pos Biaya */}
+            {/* Pos Biaya & Uang Masuk */}
             <div className="bg-white rounded-2xl border border-zinc-200/80 p-5 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)]">
               <h3 className="text-xs font-semibold text-zinc-950 mb-3 pb-2 border-b border-zinc-100">
-                Alokasi Berdasarkan Pos Tagihan
+                Alokasi Berdasarkan Pos Tagihan & Uang Masuk
               </h3>
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
                 {cashReport?.byFeeCategory.map((f, idx) => (
-                  <div key={idx} className="flex items-center justify-between text-xs">
+                  <div key={`fee-${idx}`} className="flex items-center justify-between text-xs">
                     <div>
                       <div className="font-medium text-zinc-900">{f.categoryName}</div>
-                      <div className="text-[11px] text-zinc-400">{f.count} kali dibayarkan</div>
+                      <div className="text-[11px] text-zinc-400">{f.count} kali dibayarkan (Kasir Siswa)</div>
                     </div>
                     <span className="font-mono font-semibold text-zinc-950">
                       {formatRupiah(f.totalAmount)}
+                    </span>
+                  </div>
+                ))}
+                {groupedIncomesByCategory.map((inc, idx) => (
+                  <div key={`inc-${idx}`} className="flex items-center justify-between text-xs">
+                    <div>
+                      <div className="font-medium text-zinc-900 flex items-center gap-1.5">
+                        <span>{inc.categoryName}</span>
+                        <span className="text-[9px] px-1 py-0.5 bg-emerald-50 text-emerald-700 rounded border border-emerald-200 font-medium">
+                          Non-Kasir
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-zinc-400">{inc.count} kali diterima (Bantuan/Lainnya)</div>
+                    </div>
+                    <span className="font-mono font-semibold text-emerald-600">
+                      {formatRupiah(inc.totalAmount)}
                     </span>
                   </div>
                 ))}
@@ -544,18 +764,52 @@ export default function LaporanPage() {
 
           {/* Tabel Detail Transaksi */}
           <div className="bg-white rounded-2xl border border-zinc-200/80 overflow-hidden shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)]">
-            <div className="p-4 border-b border-zinc-100 flex items-center justify-between">
+            <div className="p-4 border-b border-zinc-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <h3 className="text-xs font-semibold text-zinc-950">
-                  Rincian Riwayat Transaksi Pada Periode Ini
+                  Rincian Riwayat Transaksi Uang Masuk Periode Ini
                 </h3>
                 <p className="text-[11px] text-steel mt-0.5">
-                  Daftar transaksi penerimaan keuangan lengkap dengan status verifikasi.
+                  Daftar seluruh penerimaan kas masuk baik dari kasir pembayaran siswa maupun bantuan non-kasir.
                 </p>
               </div>
-              <span className="text-xs font-mono text-zinc-400">
-                {cashReport?.transactions.length ?? 0} Invoice
-              </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center rounded-xl bg-zinc-100 p-1 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setTransactionSourceFilter('all')}
+                    className={`px-2.5 py-1 rounded-lg font-medium transition cursor-pointer ${
+                      transactionSourceFilter === 'all'
+                        ? 'bg-white text-zinc-950 shadow-xs'
+                        : 'text-zinc-600 hover:text-zinc-900'
+                    }`}
+                  >
+                    Semua ({unifiedTransactions.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTransactionSourceFilter('cashier')}
+                    className={`px-2.5 py-1 rounded-lg font-medium transition cursor-pointer ${
+                      transactionSourceFilter === 'cashier'
+                        ? 'bg-white text-zinc-950 shadow-xs'
+                        : 'text-zinc-600 hover:text-zinc-900'
+                    }`}
+                  >
+                    Kasir Siswa ({cashReport?.transactions.length ?? 0})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTransactionSourceFilter('other')}
+                    className={`px-2.5 py-1 rounded-lg font-medium transition cursor-pointer ${
+                      transactionSourceFilter === 'other'
+                        ? 'bg-white text-emerald-700 shadow-xs'
+                        : 'text-zinc-600 hover:text-zinc-900'
+                    }`}
+                  >
+                    Non-Kasir / Bantuan ({filteredIncomes.length})
+                  </button>
+                </div>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
@@ -563,48 +817,78 @@ export default function LaporanPage() {
                   <tr className="border-b border-zinc-200 bg-zinc-50/75 text-zinc-600 font-medium">
                     <th className="py-3 px-4">No. Invoice</th>
                     <th className="py-3 px-4">Waktu</th>
-                    <th className="py-3 px-4">Siswa</th>
+                    <th className="py-3 px-4">Subjek / Sumber Dana</th>
+                    <th className="py-3 px-4">Pos / Kategori</th>
                     <th className="py-3 px-4">Saluran</th>
-                    <th className="py-3 px-4">Kasir</th>
+                    <th className="py-3 px-4">Kasir / Petugas</th>
                     <th className="py-3 px-4 text-right">Nominal</th>
                     <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4 text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-100">
-                  {cashReport?.transactions && cashReport.transactions.length > 0 ? (
-                    cashReport.transactions.map((tx) => (
+                  {unifiedTransactions.length > 0 ? (
+                    unifiedTransactions.map((tx) => (
                       <tr key={tx.id} className="hover:bg-zinc-50/50 transition">
                         <td className="py-3 px-4 font-mono font-semibold text-zinc-950">
-                          {tx.invoiceNumber}
+                          <span className={tx.sourceType === 'other' ? 'text-emerald-700 font-bold' : ''}>
+                            {tx.invoiceNumber}
+                          </span>
                         </td>
                         <td className="py-3 px-4 text-zinc-500">
-                          {new Date(tx.date).toLocaleDateString('id-ID', {
-                            day: 'numeric',
-                            month: 'short',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          {tx.date.includes('T')
+                            ? new Date(tx.date).toLocaleDateString('id-ID', {
+                                day: 'numeric',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : tx.date}
                         </td>
                         <td className="py-3 px-4">
-                          <div className="font-medium text-zinc-900">{tx.studentName}</div>
-                          <div className="text-[11px] text-zinc-400">{tx.classroomName}</div>
+                          <div className="font-medium text-zinc-900">{tx.title}</div>
+                          <div className="text-[11px] text-zinc-400">{tx.subtitle}</div>
                         </td>
-                        <td className="py-3 px-4 text-zinc-600">{tx.methodName}</td>
-                        <td className="py-3 px-4 text-zinc-600">{tx.cashierName}</td>
+                        <td className="py-3 px-4">
+                          <span className="text-zinc-700 font-medium">{tx.category}</span>
+                          {tx.sourceType === 'other' && (
+                            <span className="ml-1.5 text-[9px] px-1 py-0.2 bg-emerald-50 text-emerald-700 rounded border border-emerald-200">
+                              Non-Kasir
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-zinc-600">{tx.channel}</td>
+                        <td className="py-3 px-4 text-zinc-600">{tx.officer}</td>
                         <td className="py-3 px-4 text-right font-mono font-medium text-zinc-950">
-                          {formatRupiah(tx.totalAmount)}
+                          <span className={tx.sourceType === 'other' ? 'text-emerald-600 font-bold' : ''}>
+                            {formatRupiah(tx.amount)}
+                          </span>
                         </td>
                         <td className="py-3 px-4 text-center">
                           <Badge variant={tx.status === 'completed' ? 'paid' : 'void'} size="sm">
                             {tx.status === 'completed' ? 'Selesai' : 'Void'}
                           </Badge>
                         </td>
+                        <td className="py-3 px-4 text-center">
+                          {tx.sourceType === 'other' && tx.rawIncomeId ? (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteIncome(tx.rawIncomeId!, tx.invoiceNumber)}
+                              className="text-zinc-400 hover:text-rose-600 p-1 rounded transition cursor-pointer"
+                              title="Hapus data uang masuk non-kasir ini"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          ) : (
+                            <span className="text-zinc-300">-</span>
+                          )}
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-zinc-400">
-                        Tidak ada riwayat transaksi pada periode tahun ajaran ini.
+                      <td colSpan={9} className="py-8 text-center text-zinc-400">
+                        Tidak ada riwayat transaksi uang masuk pada periode tahun ajaran ini.
                       </td>
                     </tr>
                   )}
