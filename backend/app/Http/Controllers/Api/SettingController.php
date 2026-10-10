@@ -112,7 +112,7 @@ class SettingController extends Controller
             'name' => ['required', 'string', 'max:150'],
             'email' => ['required', 'string', 'email', 'max:150', 'unique:users,email'],
             'password' => ['required', 'string', 'min:6'],
-            'role' => ['required', 'string', Rule::in(['super_admin', 'admin_tu', 'kepala_sekolah'])],
+            'role' => ['required', 'string', 'max:50'],
         ]);
 
         $user = User::create([
@@ -121,7 +121,8 @@ class SettingController extends Controller
             'password' => Hash::make($validated['password']),
         ]);
 
-        $user->assignRole($validated['role']);
+        $role = Role::firstOrCreate(['name' => $validated['role'], 'guard_name' => 'web']);
+        $user->assignRole($role);
         $user->load('roles');
 
         return $this->successResponse(
@@ -137,7 +138,7 @@ class SettingController extends Controller
             'name' => ['required', 'string', 'max:150'],
             'email' => ['required', 'string', 'email', 'max:150', Rule::unique('users', 'email')->ignore($user->id)],
             'password' => ['nullable', 'string', 'min:6'],
-            'role' => ['required', 'string', Rule::in(['super_admin', 'admin_tu', 'kepala_sekolah'])],
+            'role' => ['required', 'string', 'max:50'],
         ]);
 
         $updateData = [
@@ -150,7 +151,8 @@ class SettingController extends Controller
         }
 
         $user->update($updateData);
-        $user->syncRoles([$validated['role']]);
+        $role = Role::firstOrCreate(['name' => $validated['role'], 'guard_name' => 'web']);
+        $user->syncRoles([$role]);
         $user->load('roles');
 
         return $this->successResponse(
