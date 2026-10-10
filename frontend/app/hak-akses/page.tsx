@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
+import { useAlert } from '@/context/alert-context';
 import { apiClient } from '@/lib/api-client';
 import { UserProfile } from '@/types/api';
 import {
@@ -41,6 +42,7 @@ import {
 
 export default function HakAksesPage() {
   const { user } = useAuth();
+  const { showCreateAlert, showUpdateAlert, showDeleteAlert } = useAlert();
   const isSuperAdmin = user?.role === 'super_admin';
 
   // Tab State
@@ -255,6 +257,7 @@ export default function HakAksesPage() {
       setRoleSuccessMsg(
         `Pengaturan hak akses untuk "${targetLabel}" berhasil disimpan dan diterapkan ke navigasi!`
       );
+      showUpdateAlert(`Hak akses untuk role ${targetLabel} berhasil disimpan.`);
       setTimeout(() => {
         setRoleSuccessMsg(null);
       }, 5000);
@@ -307,8 +310,10 @@ export default function HakAksesPage() {
     try {
       if (editingUser) {
         await apiClient.put(`/settings/users/${editingUser.id}`, userForm);
+        showUpdateAlert(`Data pengguna ${userForm.name} berhasil diperbarui.`);
       } else {
         await apiClient.post('/settings/users', userForm);
+        showCreateAlert(`Pengguna baru ${userForm.name} berhasil ditambahkan.`);
       }
       setIsUserModalOpen(false);
       fetchUsers();
@@ -325,6 +330,7 @@ export default function HakAksesPage() {
     setDeleteError(null);
     try {
       await apiClient.delete(`/settings/users/${deletingUser.id}`);
+      showDeleteAlert(`Pengguna ${deletingUser.name} berhasil dihapus.`);
       setIsDeleteModalOpen(false);
       fetchUsers();
     } catch (err: unknown) {
@@ -409,6 +415,7 @@ export default function HakAksesPage() {
     saveRolePermissions(updatedPermissions);
 
     setIsCreateRoleModalOpen(false);
+    showCreateAlert(`Role baru "${cleanLabel}" (${cleanKey}) berhasil dibuat.`);
     setRoleSuccessMsg(`Role baru "${cleanLabel}" (${cleanKey}) berhasil dibuat!`);
     setTimeout(() => setRoleSuccessMsg(null), 5000);
   };
@@ -448,6 +455,7 @@ export default function HakAksesPage() {
     setRolesDict(updatedRoles);
     saveRoles(updatedRoles);
     setIsEditRoleModalOpen(false);
+    showUpdateAlert(`Role "${updatedRole.label}" berhasil diperbarui.`);
     setRoleSuccessMsg(`Role "${updatedRole.label}" berhasil diperbarui!`);
     setTimeout(() => setRoleSuccessMsg(null), 5000);
   };
@@ -470,6 +478,8 @@ export default function HakAksesPage() {
     if (selectedRole === keyToDelete) {
       setSelectedRole('admin_tu');
     }
+
+    showDeleteAlert(`Role "${deletingRole.label}" berhasil dihapus.`);
 
     setIsDeleteRoleModalOpen(false);
     setRoleSuccessMsg(`Role "${deletingRole.label}" berhasil dihapus.`);

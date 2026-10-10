@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
+import { useAlert } from '@/context/alert-context';
 import { ExpenseItem } from '@/types/api';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -64,6 +65,7 @@ const INITIAL_EXPENSES: ExpenseItem[] = [
 ];
 
 export default function InputUangKeluarPage() {
+  const { showCreateAlert } = useAlert();
   const [expenses, setExpenses] = useState<ExpenseItem[]>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -184,6 +186,7 @@ export default function InputUangKeluarPage() {
     setAmount('');
     setLastSavedInvoice(invoiceIssued);
     setSuccessMessage(`Data berhasil disimpan dengan nomor invoice ${invoiceIssued}`);
+    showCreateAlert(`Pengeluaran uang keluar ${title.trim()} sebesar ${formatRupiah(numAmount)} berhasil dicatat.`);
     setIsSubmitting(false);
 
     setTimeout(() => {

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/context/auth-context';
+import { useAlert } from '@/context/alert-context';
 import { apiClient } from '@/lib/api-client';
 import { Student, Bill, PaymentMethod, Payment, Classroom, AcademicYear, PaginatedData } from '@/types/api';
 import { Button } from '@/components/ui/Button';
@@ -23,6 +24,7 @@ import {
 
 export default function KasirPage() {
   const { user } = useAuth();
+  const { showPaymentAlert } = useAlert();
   const isReadOnly = user?.role === 'kepala_sekolah';
 
   // Academic Year, Classroom & Students by Class State
@@ -290,6 +292,9 @@ export default function KasirPage() {
       const res = await apiClient.post<Payment>('/payments', payload);
       if (res.success && res.data) {
         setLastPayment(res.data);
+        showPaymentAlert(
+          `Pembayaran siswa ${selectedStudent.name} sebesar Rp ${res.data.totalAmount.toLocaleString('id-ID')} berhasil diproses (Invoice: ${res.data.invoiceNumber}).`
+        );
         setIsCheckoutModalOpen(false);
         setIsReceiptModalOpen(true);
         // Refresh bills of student

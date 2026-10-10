@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
+import { useAlert } from '@/context/alert-context';
 import { IncomeItem } from '@/types/api';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -31,6 +32,7 @@ const PAYMENT_CHANNELS = [
 ];
 
 export default function InputUangMasukPage() {
+  const { showCreateAlert } = useAlert();
   const [incomes, setIncomes] = useState<IncomeItem[]>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -154,6 +156,7 @@ export default function InputUangMasukPage() {
     setAmount('');
     setLastSavedInvoice(invoiceIssued);
     setSuccessMessage(`Data uang masuk berhasil disimpan dengan nomor invoice ${invoiceIssued}`);
+    showCreateAlert(`Pencatatan uang masuk ${title.trim()} sebesar ${formatRupiah(numAmount)} berhasil disimpan.`);
     setIsSubmitting(false);
 
     setTimeout(() => {
