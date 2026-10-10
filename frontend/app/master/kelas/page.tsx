@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/auth-context';
+import { useAlert } from '@/context/alert-context';
 import { apiClient } from '@/lib/api-client';
 import { AcademicYear, Classroom } from '@/types/api';
 import { Button } from '@/components/ui/Button';
@@ -21,6 +22,7 @@ import {
 
 export default function MasterKelasPage() {
   const { user } = useAuth();
+  const { showCreateAlert, showUpdateAlert, showDeleteAlert } = useAlert();
   const isReadOnly = user?.role === 'kepala_sekolah';
 
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
@@ -112,8 +114,10 @@ export default function MasterKelasPage() {
 
       if (editingYear) {
         await apiClient.put(`/academic-years/${editingYear.id}`, payload);
+        showUpdateAlert(`Tahun ajaran ${payload.name} berhasil diperbarui.`);
       } else {
         await apiClient.post('/academic-years', payload);
+        showCreateAlert(`Tahun ajaran ${payload.name} berhasil ditambahkan.`);
       }
       setIsYearModalOpen(false);
       fetchData();
@@ -171,8 +175,10 @@ export default function MasterKelasPage() {
 
       if (editingClass) {
         await apiClient.put(`/classrooms/${editingClass.id}`, payload);
+        showUpdateAlert(`Kelas ${payload.name} berhasil diperbarui.`);
       } else {
         await apiClient.post('/classrooms', payload);
+        showCreateAlert(`Kelas ${payload.name} berhasil ditambahkan.`);
       }
       setIsClassModalOpen(false);
       fetchData();
@@ -194,6 +200,9 @@ export default function MasterKelasPage() {
           ? `/academic-years/${deletingItem.id}`
           : `/classrooms/${deletingItem.id}`;
       await apiClient.delete(endpoint);
+      showDeleteAlert(
+        `${deletingItem.type === 'year' ? 'Tahun ajaran' : 'Kelas'} ${deletingItem.name} berhasil dihapus.`
+      );
       setIsDeleteModalOpen(false);
       fetchData();
     } catch (err: unknown) {

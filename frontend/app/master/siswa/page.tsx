@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/context/auth-context';
+import { useAlert } from '@/context/alert-context';
 import { apiClient } from '@/lib/api-client';
 import { Student, Classroom, AcademicYear, PaginatedData } from '@/types/api';
 import { DataTable, Column } from '@/components/ui/DataTable';
@@ -14,6 +15,7 @@ import { UserPlus, Pencil, Trash2, AlertTriangle } from 'lucide-react';
 
 export default function MasterSiswaPage() {
   const { user } = useAuth();
+  const { showCreateAlert, showUpdateAlert, showDeleteAlert } = useAlert();
   const isReadOnly = user?.role === 'kepala_sekolah';
 
   const [students, setStudents] = useState<Student[]>([]);
@@ -194,8 +196,10 @@ export default function MasterSiswaPage() {
 
       if (editingStudent) {
         await apiClient.put(`/students/${editingStudent.id}`, payload);
+        showUpdateAlert(`Data siswa ${formData.name} berhasil diperbarui.`);
       } else {
         await apiClient.post('/students', payload);
+        showCreateAlert(`Data siswa ${formData.name} berhasil ditambahkan.`);
       }
 
       setIsModalOpen(false);
@@ -219,6 +223,7 @@ export default function MasterSiswaPage() {
     setIsSubmitting(true);
     try {
       await apiClient.delete(`/students/${deletingStudent.id}`);
+      showDeleteAlert(`Data siswa ${deletingStudent.name} berhasil dihapus.`);
       setIsDeleteModalOpen(false);
       fetchStudents();
     } catch {

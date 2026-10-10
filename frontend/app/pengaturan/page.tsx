@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/auth-context';
+import { useAlert } from '@/context/alert-context';
 import { apiClient } from '@/lib/api-client';
 import { SchoolProfile, UserProfile } from '@/types/api';
 import { Button } from '@/components/ui/Button';
@@ -24,6 +25,7 @@ import {
 
 export default function PengaturanPage() {
   const { user } = useAuth();
+  const { showCreateAlert, showUpdateAlert, showDeleteAlert } = useAlert();
   const isSuperAdmin = user?.role === 'super_admin';
   const isReadOnly = user?.role === 'kepala_sekolah';
 
@@ -116,6 +118,7 @@ export default function PengaturanPage() {
       if (res.success && res.data) {
         setProfile(res.data);
         setProfileSuccessMsg('Profil sekolah & identitas kuitansi berhasil diperbarui');
+        showUpdateAlert('Profil sekolah & identitas kuitansi berhasil diperbarui.');
       }
     } catch {
       // Handled
@@ -157,8 +160,10 @@ export default function PengaturanPage() {
     try {
       if (editingUser) {
         await apiClient.put(`/settings/users/${editingUser.id}`, userForm);
+        showUpdateAlert(`Data pengguna ${userForm.name} berhasil diperbarui.`);
       } else {
         await apiClient.post('/settings/users', userForm);
+        showCreateAlert(`Pengguna baru ${userForm.name} berhasil ditambahkan.`);
       }
       setIsUserModalOpen(false);
       fetchUsers();
@@ -175,6 +180,7 @@ export default function PengaturanPage() {
     setDeleteError(null);
     try {
       await apiClient.delete(`/settings/users/${deletingUser.id}`);
+      showDeleteAlert(`Pengguna ${deletingUser.name} berhasil dihapus.`);
       setIsDeleteModalOpen(false);
       fetchUsers();
     } catch (err: unknown) {
@@ -206,6 +212,7 @@ export default function PengaturanPage() {
         newPassword,
       });
       setPasswordSuccessMsg('Kata sandi berhasil diganti');
+      showUpdateAlert('Kata sandi akun Anda berhasil diperbarui.');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');

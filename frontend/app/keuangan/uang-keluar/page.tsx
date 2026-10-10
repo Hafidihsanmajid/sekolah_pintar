@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
+import { useAlert } from '@/context/alert-context';
 import { ExpenseItem } from '@/types/api';
 import { StatCard } from '@/components/ui/StatCard';
 import { Button } from '@/components/ui/Button';
@@ -67,6 +68,7 @@ const INITIAL_EXPENSES: ExpenseItem[] = [
 ];
 
 export default function UangKeluarPage() {
+  const { showDeleteAlert } = useAlert();
   const [expenses, setExpenses] = useState<ExpenseItem[]>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -100,6 +102,7 @@ export default function UangKeluarPage() {
     if (confirm(`Apakah Anda yakin ingin menghapus data pengeluaran ${inv}?`)) {
       const updated = expenses.filter((e) => e.id !== id);
       setExpenses(updated);
+      showDeleteAlert(`Data pengeluaran invoice ${inv} berhasil dihapus.`);
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       } catch {

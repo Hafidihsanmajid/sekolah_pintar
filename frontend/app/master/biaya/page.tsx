@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/auth-context';
+import { useAlert } from '@/context/alert-context';
 import { apiClient } from '@/lib/api-client';
 import { FeeCategory, PaymentMethod } from '@/types/api';
 import { Button } from '@/components/ui/Button';
@@ -22,6 +23,7 @@ import {
 
 export default function MasterBiayaPage() {
   const { user } = useAuth();
+  const { showCreateAlert, showUpdateAlert, showDeleteAlert } = useAlert();
   const isReadOnly = user?.role === 'kepala_sekolah';
 
   const [feeCategories, setFeeCategories] = useState<FeeCategory[]>([]);
@@ -156,8 +158,10 @@ export default function MasterBiayaPage() {
 
       if (editingFee) {
         await apiClient.put(`/fee-categories/${editingFee.id}`, payload);
+        showUpdateAlert(`Tarif pos pembayaran ${payload.name} berhasil diperbarui.`);
       } else {
         await apiClient.post('/fee-categories', payload);
+        showCreateAlert(`Tarif pos pembayaran ${payload.name} berhasil ditambahkan.`);
       }
       setIsFeeModalOpen(false);
       fetchData();
@@ -213,8 +217,10 @@ export default function MasterBiayaPage() {
     try {
       if (editingMethod) {
         await apiClient.put(`/payment-methods/${editingMethod.id}`, methodForm);
+        showUpdateAlert(`Saluran pembayaran ${methodForm.name} berhasil diperbarui.`);
       } else {
         await apiClient.post('/payment-methods', methodForm);
+        showCreateAlert(`Saluran pembayaran ${methodForm.name} berhasil ditambahkan.`);
       }
       setIsMethodModalOpen(false);
       fetchData();
@@ -235,6 +241,9 @@ export default function MasterBiayaPage() {
           ? `/fee-categories/${deletingItem.id}`
           : `/payment-methods/${deletingItem.id}`;
       await apiClient.delete(endpoint);
+      showDeleteAlert(
+        `${deletingItem.type === 'fee' ? 'Tarif pembayaran' : 'Saluran pembayaran'} ${deletingItem.name} berhasil dihapus.`
+      );
       setIsDeleteModalOpen(false);
       fetchData();
     } catch {

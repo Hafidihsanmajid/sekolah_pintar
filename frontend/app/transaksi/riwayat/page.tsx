@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/auth-context';
+import { useAlert } from '@/context/alert-context';
 import { apiClient } from '@/lib/api-client';
 import { Payment, PaginatedData } from '@/types/api';
 import { DataTable, Column } from '@/components/ui/DataTable';
@@ -25,6 +26,7 @@ import {
 
 export default function RiwayatTransaksiPage() {
   const { user } = useAuth();
+  const { showDeleteAlert } = useAlert();
   const isSuperAdmin = user?.role === 'super_admin';
 
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -334,6 +336,10 @@ export default function RiwayatTransaksiPage() {
       await apiClient.post(`/payments/${voidPayment.id}/void`, {
         reason: voidReason,
       });
+      showDeleteAlert(
+        `Transaksi invoice ${voidPayment.invoiceNumber} berhasil dibatalkan (void).`,
+        'Pembatalan Transaksi Berhasil'
+      );
       setIsVoidModalOpen(false);
       fetchPayments();
     } catch (err: unknown) {
