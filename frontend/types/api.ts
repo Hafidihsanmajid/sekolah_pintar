@@ -255,3 +255,15 @@ export interface SchoolProfile {
   treasurerName?: string | null;
   updatedAt?: string | null;
 }
+
+export interface ExpenseItem {
+  id: number;
+  invoiceNumber: string;
+  title: string;
+  category: string;
+  purpose: string;
+  amount: number;
+  date: string;
+  notes?: string;
+  createdAt?: string;
+}
