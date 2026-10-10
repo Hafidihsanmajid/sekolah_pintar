@@ -27,6 +27,12 @@ class ReportController extends Controller
             ->whereDate('payment_date', '>=', $startDate)
             ->whereDate('payment_date', '<=', $endDate);
 
+        if ($request->filled('academicYearId')) {
+            $paymentsQuery->whereHas('details.bill', function ($q) use ($request) {
+                $q->where('academic_year_id', $request->input('academicYearId'));
+            });
+        }
+
         $payments = $paymentsQuery->orderBy('payment_date', 'desc')->get();
 
         $completedPayments = $payments->where('status', 'completed');

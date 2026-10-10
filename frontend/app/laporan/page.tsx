@@ -56,52 +56,62 @@ export default function LaporanPage() {
   };
 
   // Helper load Cash Report
-  const loadCashReport = useCallback(async (start: string, end: string) => {
-    if (!start || !end) return;
-    setIsLoadingCash(true);
-    try {
-      const res = await apiClient.get<DailyCashReport>('/reports/daily-cash', {
-        params: { startDate: start, endDate: end },
-      });
-      if (res.success && res.data) {
-        setCashReport(res.data);
+  const loadCashReport = useCallback(
+    async (start: string, end: string, ayId?: string) => {
+      const s = start || new Date().toISOString().split('T')[0];
+      const e = end || new Date().toISOString().split('T')[0];
+      setIsLoadingCash(true);
+      try {
+        const params: Record<string, string> = { startDate: s, endDate: e };
+        const targetAy = ayId !== undefined ? ayId : selectedAcademicYearId;
+        if (targetAy) params.academicYearId = targetAy;
+
+        const res = await apiClient.get<DailyCashReport>('/reports/daily-cash', { params });
+        if (res.success && res.data) {
+          setCashReport(res.data);
+        }
+      } catch {
+        // Handled
+      } finally {
+        setIsLoadingCash(false);
       }
-    } catch {
-      // Handled
-    } finally {
-      setIsLoadingCash(false);
-    }
-  }, []);
+    },
+    [selectedAcademicYearId]
+  );
 
   // Helper load Arrears Report
-  const loadArrearsReport = useCallback(async (academicYearIdParam?: string, classroomIdParam?: string) => {
-    setIsLoadingArrears(true);
-    try {
-      const params: Record<string, string> = {};
-      const ayId = academicYearIdParam !== undefined ? academicYearIdParam : selectedAcademicYearId;
-      const cId = classroomIdParam !== undefined ? classroomIdParam : selectedClassroomId;
+  const loadArrearsReport = useCallback(
+    async (academicYearIdParam?: string, classroomIdParam?: string) => {
+      setIsLoadingArrears(true);
+      try {
+        const params: Record<string, string> = {};
+        const ayId = academicYearIdParam !== undefined ? academicYearIdParam : selectedAcademicYearId;
+        const cId = classroomIdParam !== undefined ? classroomIdParam : selectedClassroomId;
 
-      if (ayId) params.academicYearId = ayId;
-      if (cId) params.classroomId = cId;
+        if (ayId) params.academicYearId = ayId;
+        if (cId) params.classroomId = cId;
 
-      const res = await apiClient.get<ArrearsReport>('/reports/arrears', { params });
-      if (res.success && res.data) {
-        setArrearsReport(res.data);
+        const res = await apiClient.get<ArrearsReport>('/reports/arrears', { params });
+        if (res.success && res.data) {
+          setArrearsReport(res.data);
+        }
+      } catch {
+        // Handled
+      } finally {
+        setIsLoadingArrears(false);
       }
-    } catch {
-      // Handled
-    } finally {
-      setIsLoadingArrears(false);
-    }
-  }, [selectedAcademicYearId, selectedClassroomId]);
+    },
+    [selectedAcademicYearId, selectedClassroomId]
+  );
 
   // Helper load Reconciliation Report
   const loadReconReport = useCallback(async (start: string, end: string) => {
-    if (!start || !end) return;
+    const s = start || new Date().toISOString().split('T')[0];
+    const e = end || new Date().toISOString().split('T')[0];
     setIsLoadingRecon(true);
     try {
       const res = await apiClient.get<ReconciliationReport>('/reports/reconciliation', {
-        params: { startDate: start, endDate: end },
+        params: { startDate: s, endDate: e },
       });
       if (res.success && res.data) {
         setReconReport(res.data);
@@ -160,7 +170,7 @@ export default function LaporanPage() {
         setEndDate(pEnd);
 
         // Langsung tampilkan semua laporan keuangan di periode tahun ajaran aktif
-        loadCashReport(pStart, pEnd);
+        loadCashReport(pStart, pEnd, curActiveYear ? curActiveYear.id.toString() : '');
         loadArrearsReport(curActiveYear ? curActiveYear.id.toString() : '', '');
         loadReconReport(pStart, pEnd);
       } catch {
@@ -175,11 +185,12 @@ export default function LaporanPage() {
     };
   }, [loadCashReport, loadArrearsReport, loadReconReport]);
 
-  // Handler ganti Tahun Ajaran
+  // Handler ganti Tahun Ajaran: update pilihan & tanggal periode
   const handleAcademicYearChange = (yearId: string) => {
     setSelectedAcademicYearId(yearId);
     const chosenYear = academicYears.find((y) => y.id.toString() === yearId);
     if (chosenYear) {
+      setActiveAcademicYear(chosenYear);
       const match = chosenYear.name.match(/\d{4}/g);
       const todayStr = new Date().toISOString().split('T')[0];
       let pStart = startDate;
@@ -197,19 +208,21 @@ export default function LaporanPage() {
 
       setStartDate(pStart);
       setEndDate(pEnd);
-      loadCashReport(pStart, pEnd);
-      loadArrearsReport(yearId, selectedClassroomId);
-      loadReconReport(pStart, pEnd);
     }
   };
 
-  // Handler Terapkan Filter
+  // Handler Terapkan Filter: dieksekusi saat tombol Terapkan Filter diklik
   const handleApplyFilter = () => {
-    loadCashReport(startDate, endDate);
+    loadCashReport(startDate, endDate, selectedAcademicYearId);
     loadReconReport(startDate, endDate);
   };
 
-  // Export Excel Lengkap untuk Tab Arus Kas & Bank Harian
+  // Handler Terapkan Filter untuk Tunggakan
+  const handleApplyFilterArrears = () => {
+    loadArrearsReport(selectedAcademicYearId, selectedClassroomId);
+  };
+
+  // Cetak Excel: HANYA tampilkan rincian riwayat transaksi pembayaran lengkap
   const exportCashReportToExcel = () => {
     if (!cashReport) return;
 
@@ -219,17 +232,21 @@ export default function LaporanPage() {
 
     const safeVal = (v: number | undefined | null) => (v ?? 0).toLocaleString('id-ID');
 
+    const transactions = cashReport.transactions || [];
+    const totalAmount = transactions
+      .filter((t) => t.status === 'completed')
+      .reduce((sum, t) => sum + t.totalAmount, 0);
+
     const html = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
       <head>
         <meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8">
         <style>
-          body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 11pt; }
+          body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 11pt; color: #111827; }
           .title { font-size: 14pt; font-weight: bold; color: #047857; margin-bottom: 4px; }
-          .meta { font-size: 10pt; color: #4b5563; }
-          .section-title { font-size: 11pt; font-weight: bold; background-color: #f3f4f6; color: #111827; }
-          table { border-collapse: collapse; width: 100%; margin-top: 8px; margin-bottom: 24px; }
-          th { background-color: #047857; color: #ffffff; font-weight: bold; border: 1px solid #059669; padding: 6px 10px; text-align: left; }
+          .meta { font-size: 10pt; color: #4b5563; margin-bottom: 2px; }
+          table { border-collapse: collapse; width: 100%; margin-top: 14px; }
+          th { background-color: #047857; color: #ffffff; font-weight: bold; border: 1px solid #059669; padding: 8px 10px; text-align: left; }
           td { border: 1px solid #d1d5db; padding: 6px 10px; }
           .num { text-align: right; mso-number-format: "\\#\\,\\#\\#0"; }
           .text-center { text-align: center; }
@@ -237,133 +254,22 @@ export default function LaporanPage() {
         </style>
       </head>
       <body>
-        <div class="title">LAPORAN KEUANGAN & PENERIMAAN KAS / BANK</div>
+        <div class="title">LAPORAN RINCIAN RIWAYAT TRANSAKSI PEMBAYARAN</div>
         <div class="meta"><strong>Sistem ERP Pembayaran Sekolah</strong></div>
         <div class="meta">Periode: ${startDate} s/d ${endDate} | Tahun Ajaran: ${academicYearLabel}</div>
-        <div class="meta">Dicetak pada: ${new Date().toLocaleString('id-ID')}</div>
+        <div class="meta">Total Data: ${transactions.length} Invoice | Dicetak: ${new Date().toLocaleString('id-ID')}</div>
         <br/>
 
-        <!-- TABEL 1: RINGKASAN PENERIMAAN (KPI) -->
+        <!-- HANYA TABEL RINCIAN RIWAYAT TRANSAKSI PEMBAYARAN -->
         <table>
           <thead>
-            <tr>
-              <th colspan="3" class="section-title">1. RINGKASAN PENERIMAAN KEUANGAN</th>
-            </tr>
-            <tr>
-              <th>Indikator / Kategori</th>
-              <th style="text-align: right;">Total Nominal (Rp)</th>
-              <th>Keterangan</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr class="total-row">
-              <td><strong>Total Penerimaan Keseluruhan</strong></td>
-              <td class="num"><strong>${safeVal(cashReport.summary.totalOverall)}</strong></td>
-              <td>${cashReport.summary.completedCount} transaksi pembayaran berhasil</td>
-            </tr>
-            <tr>
-              <td>Kas Fisik Tunai (Kasir TU)</td>
-              <td class="num">${safeVal(cashReport.summary.totalCash)}</td>
-              <td>Uang tunai siap disetor ke bendahara</td>
-            </tr>
-            <tr>
-              <td>Penerimaan Transfer Bank</td>
-              <td class="num">${safeVal(cashReport.summary.totalTransfer)}</td>
-              <td>Masuk langsung ke rekening bank sekolah</td>
-            </tr>
-            <tr>
-              <td>Transaksi Dibatalkan (Void)</td>
-              <td class="num">${safeVal(cashReport.summary.voidAmount)}</td>
-              <td>${cashReport.summary.voidCount} transaksi dibatalkan</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <!-- TABEL 2: PENERIMAAN PER SALURAN / REKENING -->
-        <table>
-          <thead>
-            <tr>
-              <th colspan="6" class="section-title">2. PENERIMAAN PER SALURAN / METODE PEMBAYARAN</th>
-            </tr>
-            <tr>
-              <th style="width: 40px;" class="text-center">No</th>
-              <th>Metode Pembayaran</th>
-              <th>Tipe</th>
-              <th>No. Rekening</th>
-              <th style="text-align: right;">Jumlah Transaksi</th>
-              <th style="text-align: right;">Total Nominal (Rp)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${cashReport.byMethod
-              .map(
-                (m, i) => `
-              <tr>
-                <td class="text-center">${i + 1}</td>
-                <td>${m.methodName}</td>
-                <td>${m.methodType === 'cash' ? 'Tunai' : 'Transfer Bank'}</td>
-                <td>${m.accountNumber ? m.accountNumber : '-'}</td>
-                <td class="num">${m.transactionCount}</td>
-                <td class="num">${safeVal(m.totalAmount)}</td>
-              </tr>
-            `
-              )
-              .join('')}
-            <tr class="total-row">
-              <td colspan="4" class="text-center"><strong>TOTAL</strong></td>
-              <td class="num"><strong>${cashReport.byMethod.reduce((acc, m) => acc + m.transactionCount, 0)}</strong></td>
-              <td class="num"><strong>${safeVal(cashReport.summary.totalOverall)}</strong></td>
-            </tr>
-          </tbody>
-        </table>
-
-        <!-- TABEL 3: ALOKASI BERDASARKAN POS TAGIHAN -->
-        <table>
-          <thead>
-            <tr>
-              <th colspan="4" class="section-title">3. ALOKASI PENERIMAAN PER POS BIAYA</th>
-            </tr>
-            <tr>
-              <th style="width: 40px;" class="text-center">No</th>
-              <th>Pos Tagihan / Kategori Biaya</th>
-              <th style="text-align: right;">Frekuensi Pembayaran</th>
-              <th style="text-align: right;">Total Nominal (Rp)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${cashReport.byFeeCategory
-              .map(
-                (f, i) => `
-              <tr>
-                <td class="text-center">${i + 1}</td>
-                <td>${f.categoryName}</td>
-                <td class="num">${f.count} kali</td>
-                <td class="num">${safeVal(f.totalAmount)}</td>
-              </tr>
-            `
-              )
-              .join('')}
-            <tr class="total-row">
-              <td colspan="2" class="text-center"><strong>TOTAL</strong></td>
-              <td class="num"><strong>${cashReport.byFeeCategory.reduce((acc, f) => acc + f.count, 0)} kali</strong></td>
-              <td class="num"><strong>${safeVal(cashReport.byFeeCategory.reduce((acc, f) => acc + f.totalAmount, 0))}</strong></td>
-            </tr>
-          </tbody>
-        </table>
-
-        <!-- TABEL 4: RINCIAN RIWAYAT TRANSAKSI LENGKAP -->
-        <table>
-          <thead>
-            <tr>
-              <th colspan="9" class="section-title">4. RINCIAN RIWAYAT TRANSAKSI PEMBAYARAN</th>
-            </tr>
             <tr>
               <th style="width: 40px;" class="text-center">No</th>
               <th>No. Invoice</th>
               <th>Tanggal & Waktu</th>
               <th>Nama Siswa</th>
               <th>Kelas</th>
-              <th>Saluran</th>
+              <th>Saluran Pembayaran</th>
               <th>Petugas Kasir</th>
               <th style="text-align: right;">Nominal (Rp)</th>
               <th class="text-center">Status</th>
@@ -371,8 +277,8 @@ export default function LaporanPage() {
           </thead>
           <tbody>
             ${
-              cashReport.transactions.length > 0
-                ? cashReport.transactions
+              transactions.length > 0
+                ? transactions
                     .map(
                       (tx, i) => `
                   <tr>
@@ -395,11 +301,11 @@ export default function LaporanPage() {
                 `
                     )
                     .join('')
-                : `<tr><td colspan="9" class="text-center">Tidak ada transaksi pada periode ini.</td></tr>`
+                : `<tr><td colspan="9" class="text-center">Tidak ada transaksi pembayaran pada periode ini.</td></tr>`
             }
             <tr class="total-row">
               <td colspan="7" class="text-center"><strong>TOTAL PENERIMAAN</strong></td>
-              <td class="num"><strong>${safeVal(cashReport.summary.totalOverall)}</strong></td>
+              <td class="num"><strong>${safeVal(totalAmount)}</strong></td>
               <td></td>
             </tr>
           </tbody>
@@ -414,92 +320,7 @@ export default function LaporanPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Laporan_Keuangan_${startDate}_sd_${endDate}.xls`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  // Export Excel untuk Tab Tunggakan
-  const exportArrearsToExcel = () => {
-    if (!arrearsReport) return;
-
-    const academicYearLabel = activeAcademicYear
-      ? `${activeAcademicYear.name} (${activeAcademicYear.semester})`
-      : 'Semua Periode';
-
-    const safeVal = (v: number | undefined | null) => (v ?? 0).toLocaleString('id-ID');
-
-    const html = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-      <head>
-        <meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8">
-        <style>
-          body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 11pt; }
-          .title { font-size: 14pt; font-weight: bold; color: #b91c1c; margin-bottom: 4px; }
-          .meta { font-size: 10pt; color: #4b5563; }
-          table { border-collapse: collapse; width: 100%; margin-top: 12px; margin-bottom: 24px; }
-          th { background-color: #b91c1c; color: #ffffff; font-weight: bold; border: 1px solid #991b1b; padding: 6px 10px; text-align: left; }
-          td { border: 1px solid #d1d5db; padding: 6px 10px; }
-          .num { text-align: right; mso-number-format: "\\#\\,\\#\\#0"; }
-          .text-center { text-align: center; }
-          .total-row { font-weight: bold; background-color: #fee2e2; }
-        </style>
-      </head>
-      <body>
-        <div class="title">LAPORAN TUNGGAKAN IURAN SISWA</div>
-        <div class="meta"><strong>Sistem ERP Pembayaran Sekolah</strong></div>
-        <div class="meta">Tahun Ajaran: ${academicYearLabel} | Dicetak: ${new Date().toLocaleString('id-ID')}</div>
-        <br/>
-
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 40px;" class="text-center">No</th>
-              <th>NIS</th>
-              <th>Nama Siswa</th>
-              <th>Kelas</th>
-              <th>Rincian Tagihan Belum Lunas</th>
-              <th style="text-align: right;">Sisa Tunggakan (Rp)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${
-              arrearsReport.students.length > 0
-                ? arrearsReport.students
-                    .map(
-                      (st, i) => `
-                  <tr>
-                    <td class="text-center">${i + 1}</td>
-                    <td>${st.studentNis}</td>
-                    <td><strong>${st.studentName}</strong></td>
-                    <td>${st.classroomName}</td>
-                    <td>${st.bills.map((b) => `${b.title} (Sisa: ${safeVal(b.remainingAmount)})`).join('; ')}</td>
-                    <td class="num"><strong>${safeVal(st.totalArrears)}</strong></td>
-                  </tr>
-                `
-                    )
-                    .join('')
-                : `<tr><td colspan="6" class="text-center">Tidak ada siswa yang tertunggak.</td></tr>`
-            }
-            <tr class="total-row">
-              <td colspan="5" class="text-center"><strong>TOTAL PIUTANG TUNGGAKAN</strong></td>
-              <td class="num"><strong>${safeVal(arrearsReport.summary.grandTotalArrears)}</strong></td>
-            </tr>
-          </tbody>
-        </table>
-      </body>
-      </html>
-    `;
-
-    const blob = new Blob(['\ufeff', html], {
-      type: 'application/vnd.ms-excel;charset=utf-8',
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Laporan_Tunggakan_Siswa.xls`;
+    link.download = `Riwayat_Transaksi_Pembayaran_${startDate}_sd_${endDate}.xls`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -528,20 +349,18 @@ export default function LaporanPage() {
 
         <div className="flex items-center gap-2">
           <Button
+            type="button"
             variant="outline"
             size="sm"
-            onClick={() => {
-              if (activeTab === 'cash') exportCashReportToExcel();
-              else if (activeTab === 'arrears') exportArrearsToExcel();
-              else exportCashReportToExcel();
-            }}
-            className="border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+            onClick={exportCashReportToExcel}
+            className="border-emerald-300 text-emerald-800 hover:bg-emerald-50 cursor-pointer"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 mr-1 text-emerald-600" />
             <span>Cetak Excel</span>
           </Button>
 
           <Button
+            type="button"
             variant="outline"
             size="sm"
             onClick={() => window.print()}
@@ -555,6 +374,7 @@ export default function LaporanPage() {
       {/* Tabs */}
       <div className="flex border-b border-zinc-200">
         <button
+          type="button"
           onClick={() => setActiveTab('cash')}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition cursor-pointer ${
             activeTab === 'cash'
@@ -567,6 +387,7 @@ export default function LaporanPage() {
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('arrears')}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition cursor-pointer ${
             activeTab === 'arrears'
@@ -579,6 +400,7 @@ export default function LaporanPage() {
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('reconciliation')}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition cursor-pointer ${
             activeTab === 'reconciliation'
@@ -627,17 +449,26 @@ export default function LaporanPage() {
               />
             </div>
 
-            <Button variant="primary" size="sm" onClick={handleApplyFilter} isLoading={isLoadingCash}>
+            {/* Tombol Terapkan Filter yang aktif & reaktif */}
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handleApplyFilter}
+              isLoading={isLoadingCash}
+              className="cursor-pointer"
+            >
               <span>Terapkan Filter</span>
             </Button>
 
             {/* Tombol Cetak Excel di samping tombol terapkan filter */}
             <Button
+              type="button"
               variant="outline"
               size="sm"
               onClick={exportCashReportToExcel}
-              className="border-emerald-300 text-emerald-800 hover:bg-emerald-50"
-              title="Cetak seluruh tabel laporan ke file Excel"
+              className="border-emerald-300 text-emerald-800 hover:bg-emerald-50 cursor-pointer"
+              title="Cetak rincian riwayat transaksi pembayaran ke file Excel"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 mr-1 text-emerald-600" />
               <span>Cetak Excel</span>
@@ -789,7 +620,7 @@ export default function LaporanPage() {
         <div className="space-y-6">
           {/* Filter Bar */}
           <div className="bg-white rounded-2xl border border-zinc-200/80 p-4 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               {academicYears.length > 0 && (
                 <div className="w-48">
                   <SelectField
@@ -798,10 +629,7 @@ export default function LaporanPage() {
                       value: ay.id.toString(),
                     }))}
                     value={selectedAcademicYearId}
-                    onChange={(e) => {
-                      setSelectedAcademicYearId(e.target.value);
-                      loadArrearsReport(e.target.value, selectedClassroomId);
-                    }}
+                    onChange={(e) => setSelectedAcademicYearId(e.target.value)}
                   />
                 </div>
               )}
@@ -813,21 +641,20 @@ export default function LaporanPage() {
                     ...classrooms.map((c) => ({ label: c.name, value: c.id.toString() })),
                   ]}
                   value={selectedClassroomId}
-                  onChange={(e) => {
-                    setSelectedClassroomId(e.target.value);
-                    loadArrearsReport(selectedAcademicYearId, e.target.value);
-                  }}
+                  onChange={(e) => setSelectedClassroomId(e.target.value)}
                 />
               </div>
 
+              {/* Tombol Terapkan Filter di Tab Tunggakan */}
               <Button
-                variant="outline"
+                type="button"
+                variant="primary"
                 size="sm"
-                onClick={exportArrearsToExcel}
-                className="border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+                onClick={handleApplyFilterArrears}
+                isLoading={isLoadingArrears}
+                className="cursor-pointer"
               >
-                <FileSpreadsheet className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-                <span>Cetak Excel</span>
+                <span>Terapkan Filter</span>
               </Button>
             </div>
 
@@ -915,10 +742,11 @@ export default function LaporanPage() {
             </div>
             <div className="flex items-center gap-2">
               <Button
+                type="button"
                 variant="outline"
                 size="sm"
                 onClick={exportCashReportToExcel}
-                className="border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+                className="border-emerald-300 text-emerald-800 hover:bg-emerald-50 cursor-pointer"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 mr-1 text-emerald-600" />
                 <span>Cetak Excel</span>
