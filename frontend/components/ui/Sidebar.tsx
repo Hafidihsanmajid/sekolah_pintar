@@ -16,6 +16,7 @@ import {
   ChevronDown,
   Database,
   Wallet,
+  PlusCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -57,6 +58,7 @@ const navItems: NavItem[] = [
     label: 'Keuangan',
     icon: Wallet,
     children: [
+      { label: 'Input Uang Keluar', href: '/keuangan/input-uang-keluar', icon: PlusCircle },
       { label: 'Laporan Uang Masuk', href: '/laporan', icon: FileSpreadsheet },
       { label: 'Laporan Uang Keluar', href: '/keuangan/uang-keluar', icon: Receipt },
     ],
