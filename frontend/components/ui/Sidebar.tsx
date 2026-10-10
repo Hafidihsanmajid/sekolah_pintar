@@ -15,6 +15,7 @@ import {
   Coins,
   ChevronDown,
   Database,
+  Wallet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -52,7 +53,13 @@ const navItems: NavItem[] = [
       { label: 'Riwayat Transaksi', href: '/transaksi/riwayat', icon: Receipt },
     ],
   },
-  { label: 'Laporan Keuangan', href: '/laporan', icon: FileSpreadsheet },
+  {
+    label: 'Keuangan',
+    icon: Wallet,
+    children: [
+      { label: 'Laporan Keuangan', href: '/laporan', icon: FileSpreadsheet },
+    ],
+  },
   { label: 'Pengaturan Sistem', href: '/pengaturan', icon: Settings },
 ];
 
@@ -61,6 +68,7 @@ export function Sidebar() {
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     'Master Data': true,
     'Transaksi Pembayaran': true,
+    'Keuangan': true,
   });
 
   useEffect(() => {
