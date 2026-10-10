@@ -1,10 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/context/auth-context';
+import { getRolePermissions, SystemRole } from '@/lib/role-permissions';
 import {
   LayoutDashboard,
+  ShieldCheck,
   Users,
   CreditCard,
   Receipt,
@@ -32,14 +35,22 @@ export interface NavItem {
   href?: string;
   icon: React.ComponentType<{ className?: string }>;
   roles?: string[];
+  permissionKey?: string;
   children?: SubNavItem[];
 }
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   {
+    label: 'Hak Akses',
+    href: '/hak-akses',
+    icon: ShieldCheck,
+    roles: ['super_admin'],
+  },
+  {
     label: 'Master Data',
     icon: Database,
+    permissionKey: 'master_data',
     children: [
       { label: 'Data Siswa', href: '/master/siswa', icon: Users },
       { label: 'Kelas & Tahun Ajaran', href: '/master/kelas', icon: School },
@@ -49,6 +60,7 @@ const navItems: NavItem[] = [
   {
     label: 'Transaksi Pembayaran',
     icon: CreditCard,
+    permissionKey: 'transaksi',
     children: [
       { label: 'Kasir Pembayaran', href: '/transaksi/kasir', icon: CreditCard },
       { label: 'Riwayat Transaksi', href: '/transaksi/riwayat', icon: Receipt },
@@ -57,17 +69,25 @@ const navItems: NavItem[] = [
   {
     label: 'Keuangan',
     icon: Wallet,
+    permissionKey: 'keuangan',
     children: [
       { label: 'Input Uang Keluar', href: '/keuangan/input-uang-keluar', icon: PlusCircle },
       { label: 'Laporan Uang Masuk', href: '/laporan', icon: FileSpreadsheet },
       { label: 'Laporan Uang Keluar', href: '/keuangan/uang-keluar', icon: Receipt },
     ],
   },
-  { label: 'Pengaturan Sistem', href: '/pengaturan', icon: Settings },
+  {
+    label: 'Pengaturan Sistem',
+    href: '/pengaturan',
+    icon: Settings,
+    permissionKey: 'pengaturan',
+  },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { user } = useAuth();
+  const [rolePermissions, setRolePermissions] = useState<Record<SystemRole, string[]>>(getRolePermissions);
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     'Master Data': true,
     'Transaksi Pembayaran': true,
@@ -75,7 +95,38 @@ export function Sidebar() {
   });
 
   useEffect(() => {
-    navItems.forEach((item) => {
+    const handlePermissionsUpdate = () => {
+      setRolePermissions(getRolePermissions());
+    };
+    window.addEventListener('role-permissions-updated', handlePermissionsUpdate);
+    window.addEventListener('storage', handlePermissionsUpdate);
+    return () => {
+      window.removeEventListener('role-permissions-updated', handlePermissionsUpdate);
+      window.removeEventListener('storage', handlePermissionsUpdate);
+    };
+  }, []);
+
+  const visibleNavItems = useMemo(() => {
+    return navItems.filter((item) => {
+      // 1. Menu dengan restriksi role eksplisit (misal: Hak Akses hanya super_admin)
+      if (item.roles && (!user || !item.roles.includes(user.role))) {
+        return false;
+      }
+      // 2. Super admin memiliki akses penuh ke seluruh modul sistem
+      if (user?.role === 'super_admin') {
+        return true;
+      }
+      // 3. Filter izin menu dinamis sesuai konfigurasi role
+      if (item.permissionKey && user?.role) {
+        const allowed = rolePermissions[user.role as SystemRole] || [];
+        return allowed.includes(item.permissionKey);
+      }
+      return true;
+    });
+  }, [user, rolePermissions]);
+
+  useEffect(() => {
+    visibleNavItems.forEach((item) => {
       if (item.children) {
         const isChildActive = item.children.some(
           (sub) => pathname === sub.href || pathname?.startsWith(`${sub.href}/`)
@@ -85,7 +136,7 @@ export function Sidebar() {
         }
       }
     });
-  }, [pathname]);
+  }, [pathname, visibleNavItems]);
 
   const toggleMenu = (label: string) => {
     setExpandedMenus((prev) => ({
@@ -112,7 +163,7 @@ export function Sidebar() {
         </div>
 
         <nav className="p-3 space-y-1">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
 
             if (item.children && item.children.length > 0) {
