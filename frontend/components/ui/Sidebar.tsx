@@ -89,10 +89,18 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
   const [rolePermissions, setRolePermissions] = useState<Record<SystemRole, string[]>>(getRolePermissions);
-  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
-    'Master Data': true,
-    'Transaksi Pembayaran': true,
-    'Keuangan': true,
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>(() => {
+    for (const item of navItems) {
+      if (item.children) {
+        const isChildActive = item.children.some(
+          (sub) => pathname === sub.href || pathname?.startsWith(`${sub.href}/`)
+        );
+        if (isChildActive) {
+          return { [item.label]: true };
+        }
+      }
+    }
+    return {};
   });
 
   useEffect(() => {
@@ -127,23 +135,31 @@ export function Sidebar() {
   }, [user, rolePermissions]);
 
   useEffect(() => {
-    visibleNavItems.forEach((item) => {
+    let activeParentLabel: string | null = null;
+    for (const item of visibleNavItems) {
       if (item.children) {
         const isChildActive = item.children.some(
           (sub) => pathname === sub.href || pathname?.startsWith(`${sub.href}/`)
         );
         if (isChildActive) {
-          setExpandedMenus((prev) => ({ ...prev, [item.label]: true }));
+          activeParentLabel = item.label;
+          break;
         }
       }
-    });
+    }
+
+    if (activeParentLabel) {
+      setExpandedMenus({ [activeParentLabel]: true });
+    } else {
+      setExpandedMenus({});
+    }
   }, [pathname, visibleNavItems]);
 
   const toggleMenu = (label: string) => {
-    setExpandedMenus((prev) => ({
-      ...prev,
-      [label]: !prev[label],
-    }));
+    setExpandedMenus((prev) => {
+      const isCurrentlyOpen = Boolean(prev[label]);
+      return isCurrentlyOpen ? {} : { [label]: true };
+    });
   };
 
   return (
