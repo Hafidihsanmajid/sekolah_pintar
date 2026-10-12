@@ -24,7 +24,6 @@ import {
   FileSpreadsheet,
   AlertTriangle,
   Scale,
-  Printer,
   TrendingUp,
   Receipt,
   Building2,
@@ -561,16 +560,6 @@ export default function LaporanPage() {
           >
             <FileSpreadsheet className="w-3.5 h-3.5 mr-1 text-emerald-600" />
             <span>Cetak Excel</span>
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => window.print()}
-          >
-            <Printer className="w-3.5 h-3.5 mr-1" />
-            <span>Cetak Dokumen</span>
           </Button>
         </div>
       </div>
