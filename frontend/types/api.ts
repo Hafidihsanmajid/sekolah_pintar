@@ -68,6 +68,20 @@ export interface Student {
   createdAt?: string;
 }
 
+export interface Alumni {
+  id: number;
+  nis: string;
+  nisn?: string | null;
+  name: string;
+  lastClassroom: string;
+  entryYear: string;
+  graduationYear: string;
+  phoneNumber?: string | null;
+  address?: string | null;
+  status: 'Lulus';
+  graduatedAt: string;
+}
+
 export interface FeeCategory {
   id: number;
   name: string;

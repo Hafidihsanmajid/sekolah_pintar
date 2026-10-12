@@ -53,6 +53,7 @@ const navItems: NavItem[] = [
     permissionKey: 'master_data',
     children: [
       { label: 'Data Siswa', href: '/master/siswa', icon: Users },
+      { label: 'Data Alumni', href: '/master/alumni', icon: GraduationCap },
       { label: 'Kelas & Tahun Ajaran', href: '/master/kelas', icon: School },
       { label: 'Tarif Pembayaran', href: '/master/biaya', icon: Coins },
     ],

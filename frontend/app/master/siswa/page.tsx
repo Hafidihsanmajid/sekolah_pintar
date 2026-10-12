@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
 import { useAlert } from '@/context/alert-context';
 import { apiClient } from '@/lib/api-client';
@@ -11,9 +12,11 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { InputField } from '@/components/ui/InputField';
 import { SelectField } from '@/components/ui/SelectField';
-import { UserPlus, Pencil, Trash2, AlertTriangle } from 'lucide-react';
+import { UserPlus, Pencil, Trash2, AlertTriangle, GraduationCap } from 'lucide-react';
+import { addAlumni } from '@/lib/alumni';
 
 export default function MasterSiswaPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const { showCreateAlert, showUpdateAlert, showDeleteAlert } = useAlert();
   const isReadOnly = user?.role === 'kepala_sekolah';
@@ -47,6 +50,11 @@ export default function MasterSiswaPage() {
   // Delete State
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
+
+  // Graduate State
+  const [isGraduateModalOpen, setIsGraduateModalOpen] = useState(false);
+  const [graduatingStudent, setGraduatingStudent] = useState<Student | null>(null);
+  const [graduationYear, setGraduationYear] = useState(new Date().getFullYear().toString());
 
   // Fetch Academic Years
   const fetchAcademicYears = useCallback(async () => {
@@ -233,6 +241,44 @@ export default function MasterSiswaPage() {
     }
   };
 
+  const handleConfirmGraduation = async () => {
+    if (!graduatingStudent) return;
+    setIsSubmitting(true);
+    try {
+      addAlumni({
+        nis: graduatingStudent.nis,
+        nisn: graduatingStudent.nisn,
+        name: graduatingStudent.name,
+        lastClassroom: graduatingStudent.classroomName || 'Kelas XII',
+        entryYear: graduatingStudent.entryYear,
+        graduationYear: graduationYear || new Date().getFullYear().toString(),
+        phoneNumber: graduatingStudent.phoneNumber,
+        address: graduatingStudent.address,
+      });
+
+      try {
+        await apiClient.put(`/students/${graduatingStudent.id}`, {
+          nis: graduatingStudent.nis,
+          nisn: graduatingStudent.nisn,
+          name: graduatingStudent.name,
+          classroomId: graduatingStudent.classroomId,
+          entryYear: graduatingStudent.entryYear,
+          phoneNumber: graduatingStudent.phoneNumber,
+          address: graduatingStudent.address,
+          isActive: false,
+        });
+      } catch {
+        // Handled
+      }
+
+      showCreateAlert(`Siswa ${graduatingStudent.name} dinyatakan lulus dan dipindahkan ke Data Alumni.`);
+      setIsGraduateModalOpen(false);
+      router.push('/master/alumni');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const columns: Column<Student>[] = [
     {
       key: 'nis',
@@ -295,8 +341,13 @@ export default function MasterSiswaPage() {
       key: 'actions',
       header: 'Aksi',
       align: 'right',
-      render: (row) =>
-        !isReadOnly ? (
+      render: (row) => {
+        const isGrade12 =
+          row.classroomLevel === '12' ||
+          row.classroomLevel === 'XII' ||
+          (row.classroomName ? /(^XII|\bXII\b|\b12\b)/i.test(row.classroomName) : false);
+
+        return !isReadOnly ? (
           <div className="flex items-center justify-end gap-1">
             <Button
               variant="outline"
@@ -306,9 +357,27 @@ export default function MasterSiswaPage() {
                 handleOpenEdit(row);
               }}
               className="px-2 py-1 h-7"
+              title="Edit Data Siswa"
             >
               <Pencil className="w-3 h-3 text-zinc-600" />
             </Button>
+            {isGrade12 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setGraduatingStudent(row);
+                  setGraduationYear(new Date().getFullYear().toString());
+                  setIsGraduateModalOpen(true);
+                }}
+                className="px-2 py-1 h-7 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200 text-xs flex items-center gap-1 font-medium"
+                title="Luluskan Siswa ke Data Alumni"
+              >
+                <GraduationCap className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Lulus</span>
+              </Button>
+            )}
             <Button
               variant="danger"
               size="sm"
@@ -318,13 +387,15 @@ export default function MasterSiswaPage() {
                 setIsDeleteModalOpen(true);
               }}
               className="px-2 py-1 h-7 bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200"
+              title="Hapus Siswa"
             >
               <Trash2 className="w-3 h-3 text-rose-600" />
             </Button>
           </div>
         ) : (
           <span className="text-xs text-zinc-400 italic">Read-only</span>
-        ),
+        );
+      },
     },
   ];
 
@@ -558,6 +629,63 @@ export default function MasterSiswaPage() {
               isLoading={isSubmitting}
             >
               Hapus Siswa
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Graduate Confirmation Modal */}
+      <Modal
+        isOpen={isGraduateModalOpen}
+        onClose={() => setIsGraduateModalOpen(false)}
+        title="Konfirmasi Kelulusan Siswa"
+        description="Apakah siswa benar lulus dan siap dipindahkan ke Data Alumni?"
+      >
+        <div className="space-y-4">
+          <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-3">
+            <GraduationCap className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="text-xs text-emerald-950 space-y-1">
+              <p className="font-semibold text-sm text-emerald-900">{graduatingStudent?.name}</p>
+              <p className="font-mono text-emerald-800">
+                NIS: {graduatingStudent?.nis} {graduatingStudent?.nisn ? `| NISN: ${graduatingStudent.nisn}` : ''}
+              </p>
+              <p className="text-emerald-700">
+                Kelas: {graduatingStudent?.classroomName || 'Kelas XII'} (Angkatan {graduatingStudent?.entryYear})
+              </p>
+            </div>
+          </div>
+
+          <div className="text-xs text-zinc-600 leading-relaxed">
+            Apakah siswa benar lulus? Konfirmasi ini akan mencatat siswa ke dalam sub menu <strong>Data Alumni</strong> dan mengalihkan status aktifnya.
+          </div>
+
+          <InputField
+            label="Tahun Kelulusan"
+            value={graduationYear}
+            onChange={(e) => setGraduationYear(e.target.value)}
+            placeholder="Contoh: 2026"
+            required
+          />
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsGraduateModalOpen(false)}
+              disabled={isSubmitting}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              isLoading={isSubmitting}
+              onClick={handleConfirmGraduation}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              Ya, Siswa Benar Lulus
             </Button>
           </div>
         </div>
