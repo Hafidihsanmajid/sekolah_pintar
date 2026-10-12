@@ -371,7 +371,7 @@ export default function MasterSiswaPage() {
               <option value="">Semua Tahun Ajaran</option>
               {academicYears.map((y) => (
                 <option key={y.id} value={y.id.toString()}>
-                  {y.name} - {y.semester}{y.isActive ? ' (Aktif)' : ''}
+                  {y.name}{y.isActive ? ' (Aktif)' : ''}
                 </option>
               ))}
             </select>
