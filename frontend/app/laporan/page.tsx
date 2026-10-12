@@ -387,7 +387,7 @@ export default function LaporanPage() {
     if (!cashReport && filteredIncomes.length === 0) return;
 
     const academicYearLabel = activeAcademicYear
-      ? `${activeAcademicYear.name} (${activeAcademicYear.semester})`
+      ? activeAcademicYear.name
       : 'Semua Periode';
 
     const safeVal = (v: number | undefined | null) => (v ?? 0).toLocaleString('id-ID');
@@ -529,7 +529,7 @@ export default function LaporanPage() {
             </h1>
             {activeAcademicYear && (
               <Badge variant="paid" size="sm" className="hidden sm:inline-flex">
-                T.A. {activeAcademicYear.name} - {activeAcademicYear.semester} (Aktif)
+                T.A. {activeAcademicYear.name} (Aktif)
               </Badge>
             )}
           </div>
@@ -616,7 +616,7 @@ export default function LaporanPage() {
                 <SelectField
                   label=""
                   options={academicYears.map((ay) => ({
-                    label: `${ay.name} - ${ay.semester}${ay.isActive ? ' (Aktif)' : ''}`,
+                    label: `${ay.name}${ay.isActive ? ' (Aktif)' : ''}`,
                     value: ay.id.toString(),
                   }))}
                   value={selectedAcademicYearId}
@@ -898,7 +898,7 @@ export default function LaporanPage() {
                 <div className="w-48">
                   <SelectField
                     options={academicYears.map((ay) => ({
-                      label: `${ay.name} - ${ay.semester}${ay.isActive ? ' (Aktif)' : ''}`,
+                      label: `${ay.name}${ay.isActive ? ' (Aktif)' : ''}`,
                       value: ay.id.toString(),
                     }))}
                     value={selectedAcademicYearId}

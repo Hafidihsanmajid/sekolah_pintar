@@ -350,7 +350,7 @@ export default function KasirPage() {
                     options={[
                       { label: 'Semua Tahun Ajaran', value: '' },
                       ...academicYears.map((y) => ({
-                        label: `${y.name} - ${y.semester}${y.isActive ? ' (Aktif)' : ''}`,
+                        label: `${y.name}${y.isActive ? ' (Aktif)' : ''}`,
                         value: y.id.toString(),
                       })),
                     ]}
