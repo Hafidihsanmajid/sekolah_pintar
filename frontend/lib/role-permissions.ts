@@ -19,8 +19,8 @@ export const SYSTEM_MENUS: MenuConfig[] = [
   {
     key: 'master_data',
     label: 'Master Data',
-    description: 'Akses data siswa, kelas & tahun ajaran, dan tarif pembayaran',
-    subMenus: ['Data Siswa', 'Kelas & Tahun Ajaran', 'Tarif Pembayaran'],
+    description: 'Akses data siswa, data alumni, kelas & tahun ajaran, dan tarif pembayaran',
+    subMenus: ['Data Siswa', 'Data Alumni', 'Kelas & Tahun Ajaran', 'Tarif Pembayaran'],
   },
   {
     key: 'transaksi',
