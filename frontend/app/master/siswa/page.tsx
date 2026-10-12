@@ -349,18 +349,6 @@ export default function MasterSiswaPage() {
 
         return !isReadOnly ? (
           <div className="flex items-center justify-end gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpenEdit(row);
-              }}
-              className="px-2 py-1 h-7"
-              title="Edit Data Siswa"
-            >
-              <Pencil className="w-3 h-3 text-zinc-600" />
-            </Button>
             {isGrade12 && (
               <Button
                 variant="outline"
@@ -378,6 +366,18 @@ export default function MasterSiswaPage() {
                 <span>Lulus</span>
               </Button>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenEdit(row);
+              }}
+              className="px-2 py-1 h-7"
+              title="Edit Data Siswa"
+            >
+              <Pencil className="w-3 h-3 text-zinc-600" />
+            </Button>
             <Button
               variant="danger"
               size="sm"
