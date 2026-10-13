@@ -96,7 +96,8 @@ export function addAlumni(
     status: 'Lulus',
     graduatedAt: item.graduatedAt || new Date().toISOString(),
   };
-  const updated = [newAlumni, ...current];
+  const filteredCurrent = current.filter((a) => a.nis !== item.nis);
+  const updated = [newAlumni, ...filteredCurrent];
   saveAlumniList(updated);
   return newAlumni;
 }
