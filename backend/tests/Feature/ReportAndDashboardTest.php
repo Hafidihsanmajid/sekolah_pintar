@@ -113,4 +113,22 @@ class ReportAndDashboardTest extends TestCase
                 ],
             ]);
     }
+
+    public function test_keuangan_can_fetch_reports_matching_super_admin(): void
+    {
+        $superAdmin = User::where('email', 'superadmin@sekolah.sch.id')->first();
+        $superAdminToken = $superAdmin->createToken('test_sa_token')->plainTextToken;
+
+        $keuangan = User::where('email', 'keuangan@sekolah.sch.id')->first();
+        $keuanganToken = $keuangan->createToken('test_keuangan_token')->plainTextToken;
+
+        $saResponse = $this->withHeader('Authorization', 'Bearer ' . $superAdminToken)
+            ->getJson('/api/reports/daily-cash');
+        $keuanganResponse = $this->withHeader('Authorization', 'Bearer ' . $keuanganToken)
+            ->getJson('/api/reports/daily-cash');
+
+        $saResponse->assertStatus(200);
+        $keuanganResponse->assertStatus(200);
+        $this->assertEquals($saResponse->json('data'), $keuanganResponse->json('data'));
+    }
 }

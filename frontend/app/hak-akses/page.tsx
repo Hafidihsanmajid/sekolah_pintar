@@ -150,6 +150,13 @@ export default function HakAksesPage() {
           role: 'kepala_sekolah',
           createdAt: new Date().toISOString(),
         },
+        {
+          id: 4,
+          name: 'Staf Keuangan',
+          email: 'keuangan@sekolah.sch.id',
+          role: 'keuangan',
+          createdAt: new Date().toISOString(),
+        },
       ]);
     } finally {
       setIsLoadingUsers(false);
@@ -187,6 +194,13 @@ export default function HakAksesPage() {
                 name: 'Kepala Sekolah',
                 email: 'kepsek@sekolah.sch.id',
                 role: 'kepala_sekolah',
+                createdAt: new Date().toISOString(),
+              },
+              {
+                id: 4,
+                name: 'Staf Keuangan',
+                email: 'keuangan@sekolah.sch.id',
+                role: 'keuangan',
                 createdAt: new Date().toISOString(),
               },
             ]);
