@@ -493,11 +493,12 @@ export default function MasterSiswaPage() {
         const isGrade12 =
           row.classroomLevel === '12' ||
           row.classroomLevel === 'XII' ||
+          parseGradeLevel(row.classroomLevel, row.classroomName) === 12 ||
           (row.classroomName ? /(^XII|\bXII\b|\b12\b)/i.test(row.classroomName) : false);
 
         return !isReadOnly ? (
           <div className="flex items-center justify-end gap-1">
-            {isGrade12 && (
+            {isGrade12 ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -513,20 +514,21 @@ export default function MasterSiswaPage() {
                 <GraduationCap className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Lulus</span>
               </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenPromote(row);
+                }}
+                className="px-2 py-1 h-7 bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200 text-xs flex items-center gap-1 font-medium"
+                title="Naikkan Kelas Siswa"
+              >
+                <TrendingUp className="w-3.5 h-3.5 text-blue-600" />
+                <span>Naik Kelas</span>
+              </Button>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpenPromote(row);
-              }}
-              className="px-2 py-1 h-7 bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200 text-xs flex items-center gap-1 font-medium"
-              title="Naikkan Kelas Siswa"
-            >
-              <TrendingUp className="w-3.5 h-3.5 text-blue-600" />
-              <span>Naik Kelas</span>
-            </Button>
             <Button
               variant="outline"
               size="sm"
