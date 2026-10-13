@@ -13,7 +13,7 @@ import { Modal } from '@/components/ui/Modal';
 import { InputField } from '@/components/ui/InputField';
 import { SelectField } from '@/components/ui/SelectField';
 import { UserPlus, Pencil, Trash2, AlertTriangle, GraduationCap } from 'lucide-react';
-import { addAlumni } from '@/lib/alumni';
+import { addAlumni, getAlumniList } from '@/lib/alumni';
 
 export default function MasterSiswaPage() {
   const router = useRouter();
@@ -124,8 +124,13 @@ export default function MasterSiswaPage() {
 
       const res = await apiClient.get<PaginatedData<Student>>('/students', { params });
       if (res.success && res.data) {
-        setStudents(res.data.items);
-        setTotalRows(res.data.pagination.total);
+        const alumniList = getAlumniList();
+        const alumniNisSet = new Set(alumniList.map((a) => a.nis));
+        const filteredItems = res.data.items.filter((s) => !alumniNisSet.has(s.nis));
+
+        setStudents(filteredItems);
+        const removedCount = res.data.items.length - filteredItems.length;
+        setTotalRows(Math.max(0, res.data.pagination.total - removedCount));
       }
     } catch {
       // Handled
@@ -251,25 +256,32 @@ export default function MasterSiswaPage() {
         name: graduatingStudent.name,
         lastClassroom: graduatingStudent.classroomName || 'Kelas XII',
         entryYear: graduatingStudent.entryYear,
-        graduationYear: graduationYear || new Date().getFullYear().toString(),
+        graduationYear: (graduationYear || '').trim() || new Date().getFullYear().toString(),
         phoneNumber: graduatingStudent.phoneNumber,
         address: graduatingStudent.address,
       });
 
       try {
-        await apiClient.put(`/students/${graduatingStudent.id}`, {
-          nis: graduatingStudent.nis,
-          nisn: graduatingStudent.nisn,
-          name: graduatingStudent.name,
-          classroomId: graduatingStudent.classroomId,
-          entryYear: graduatingStudent.entryYear,
-          phoneNumber: graduatingStudent.phoneNumber,
-          address: graduatingStudent.address,
-          isActive: false,
-        });
+        await apiClient.delete(`/students/${graduatingStudent.id}`);
       } catch {
-        // Handled
+        try {
+          await apiClient.put(`/students/${graduatingStudent.id}`, {
+            nis: graduatingStudent.nis,
+            nisn: graduatingStudent.nisn,
+            name: graduatingStudent.name,
+            classroomId: graduatingStudent.classroomId,
+            entryYear: graduatingStudent.entryYear,
+            phoneNumber: graduatingStudent.phoneNumber,
+            address: graduatingStudent.address,
+            isActive: false,
+          });
+        } catch {
+          // Handled
+        }
       }
+
+      setStudents((prev) => prev.filter((s) => s.id !== graduatingStudent.id));
+      setTotalRows((prev) => Math.max(0, prev - 1));
 
       showCreateAlert(`Siswa ${graduatingStudent.name} dinyatakan lulus dan dipindahkan ke Data Alumni.`);
       setIsGraduateModalOpen(false);
