@@ -82,8 +82,10 @@ export default function MasterSiswaPage() {
 
   // Filtered Classrooms by selected Academic Year
   const filteredClassrooms = useMemo(() => {
-    if (!selectedAcademicYearId) return classrooms;
-    return classrooms.filter((c) => c.academicYearId.toString() === selectedAcademicYearId);
+    const list = !selectedAcademicYearId
+      ? classrooms
+      : classrooms.filter((c) => c.academicYearId.toString() === selectedAcademicYearId);
+    return list.filter((c) => c.name.toLowerCase() !== 'tagihan alumni');
   }, [classrooms, selectedAcademicYearId]);
 
   // Handler Tahun Ajaran Change
@@ -126,7 +128,9 @@ export default function MasterSiswaPage() {
       if (res.success && res.data) {
         const alumniList = getAlumniList();
         const alumniNisSet = new Set(alumniList.map((a) => a.nis));
-        const filteredItems = res.data.items.filter((s) => !alumniNisSet.has(s.nis));
+        const filteredItems = res.data.items.filter(
+          (s) => !alumniNisSet.has(s.nis) && s.classroomName?.toLowerCase() !== 'tagihan alumni'
+        );
 
         setStudents(filteredItems);
         const removedCount = res.data.items.length - filteredItems.length;
@@ -150,11 +154,12 @@ export default function MasterSiswaPage() {
 
   const handleOpenCreate = () => {
     setEditingStudent(null);
+    const availableClassrooms = classrooms.filter((c) => c.name.toLowerCase() !== 'tagihan alumni');
     setFormData({
       nis: '',
       nisn: '',
       name: '',
-      classroomId: classrooms[0]?.id?.toString() || '',
+      classroomId: availableClassrooms[0]?.id?.toString() || '',
       entryYear: new Date().getFullYear().toString(),
       phoneNumber: '',
       address: '',
@@ -250,6 +255,7 @@ export default function MasterSiswaPage() {
     if (!graduatingStudent) return;
     setIsSubmitting(true);
     try {
+      // 1. Catat ke Data Alumni
       addAlumni({
         nis: graduatingStudent.nis,
         nisn: graduatingStudent.nisn,
@@ -261,29 +267,60 @@ export default function MasterSiswaPage() {
         address: graduatingStudent.address,
       });
 
-      try {
-        await apiClient.delete(`/students/${graduatingStudent.id}`);
-      } catch {
+      // 2. Dapatkan atau buat kelas khusus "Tagihan Alumni"
+      let alumniClassroom = classrooms.find((c) => c.name.toLowerCase() === 'tagihan alumni');
+      if (!alumniClassroom) {
+        try {
+          const resClass = await apiClient.get<Classroom[]>('/classrooms');
+          if (resClass.success && resClass.data) {
+            alumniClassroom = resClass.data.find((c) => c.name.toLowerCase() === 'tagihan alumni');
+          }
+        } catch {
+          // Handled
+        }
+      }
+
+      if (!alumniClassroom) {
+        try {
+          const activeYear = academicYears.find((y) => y.isActive) || academicYears[0];
+          const createRes = await apiClient.post<Classroom>('/classrooms', {
+            name: 'Tagihan Alumni',
+            level: 'Alumni',
+            academicYearId: activeYear?.id || 1,
+          });
+          if (createRes.success && createRes.data) {
+            alumniClassroom = createRes.data;
+          }
+        } catch {
+          // Handled
+        }
+      }
+
+      // 3. Pindahkan siswa dan tagihannya ke kelas "Tagihan Alumni" tanpa menghapus tagihan
+      if (alumniClassroom) {
         try {
           await apiClient.put(`/students/${graduatingStudent.id}`, {
             nis: graduatingStudent.nis,
             nisn: graduatingStudent.nisn,
             name: graduatingStudent.name,
-            classroomId: graduatingStudent.classroomId,
+            classroomId: alumniClassroom.id,
             entryYear: graduatingStudent.entryYear,
             phoneNumber: graduatingStudent.phoneNumber,
             address: graduatingStudent.address,
-            isActive: false,
+            isActive: true,
           });
         } catch {
           // Handled
         }
       }
 
+      // 4. Hapus dari tampilan tabel data siswa aktif saat ini
       setStudents((prev) => prev.filter((s) => s.id !== graduatingStudent.id));
       setTotalRows((prev) => Math.max(0, prev - 1));
 
-      showCreateAlert(`Siswa ${graduatingStudent.name} dinyatakan lulus dan dipindahkan ke Data Alumni.`);
+      showCreateAlert(
+        `Siswa ${graduatingStudent.name} dinyatakan lulus dan dipindahkan ke Data Alumni. Tagihan siswa dialihkan ke kelas Tagihan Alumni.`
+      );
       setIsGraduateModalOpen(false);
       router.push('/master/alumni');
     } finally {
@@ -668,7 +705,7 @@ export default function MasterSiswaPage() {
           </div>
 
           <div className="text-xs text-zinc-600 leading-relaxed">
-            Apakah siswa benar lulus? Konfirmasi ini akan mencatat siswa ke dalam sub menu <strong>Data Alumni</strong> dan mengalihkan status aktifnya.
+            Apakah siswa benar lulus? Konfirmasi ini akan mencatat siswa ke dalam sub menu <strong>Data Alumni</strong> dan memindahkan tagihannya ke kelas khusus <strong>Tagihan Alumni</strong> di Kasir Pembayaran tanpa menghapus tagihan yang belum lunas.
           </div>
 
           <InputField
