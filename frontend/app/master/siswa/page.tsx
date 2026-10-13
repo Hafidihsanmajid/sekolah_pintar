@@ -12,8 +12,23 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { InputField } from '@/components/ui/InputField';
 import { SelectField } from '@/components/ui/SelectField';
-import { UserPlus, Pencil, Trash2, AlertTriangle, GraduationCap } from 'lucide-react';
+import { UserPlus, Pencil, Trash2, AlertTriangle, GraduationCap, TrendingUp } from 'lucide-react';
 import { addAlumni, getAlumniList } from '@/lib/alumni';
+
+function parseGradeLevel(level?: string | null, className?: string | null): number | null {
+  const l = (level || '').trim().toUpperCase();
+  if (l === '10' || l === 'X') return 10;
+  if (l === '11' || l === 'XI') return 11;
+  if (l === '12' || l === 'XII') return 12;
+
+  const name = (className || '').trim().toUpperCase();
+  if (/(^|\b)(10|X)(\b|[-_ ])/i.test(name)) return 10;
+  if (/(^|\b)(11|XI)(\b|[-_ ])/i.test(name)) return 11;
+  if (/(^|\b)(12|XII)(\b|[-_ ])/i.test(name)) return 12;
+
+  const num = parseInt(l, 10);
+  return !isNaN(num) && num > 0 ? num : null;
+}
 
 export default function MasterSiswaPage() {
   const router = useRouter();
@@ -56,6 +71,11 @@ export default function MasterSiswaPage() {
   const [graduatingStudent, setGraduatingStudent] = useState<Student | null>(null);
   const [graduationYear, setGraduationYear] = useState(new Date().getFullYear().toString());
 
+  // Promote State (Naik Kelas)
+  const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false);
+  const [promotingStudent, setPromotingStudent] = useState<Student | null>(null);
+  const [targetClassroomId, setTargetClassroomId] = useState('');
+
   // Fetch Academic Years
   const fetchAcademicYears = useCallback(async () => {
     try {
@@ -87,6 +107,20 @@ export default function MasterSiswaPage() {
       : classrooms.filter((c) => c.academicYearId.toString() === selectedAcademicYearId);
     return list.filter((c) => c.name.toLowerCase() !== 'tagihan alumni');
   }, [classrooms, selectedAcademicYearId]);
+
+  // Available Target Classrooms for promotion strictly of next grade level (no level skipping)
+  const availableTargetClassrooms = useMemo(() => {
+    if (!promotingStudent) return [];
+    const currentLevel = parseGradeLevel(promotingStudent.classroomLevel, promotingStudent.classroomName);
+    if (!currentLevel || currentLevel >= 12) return [];
+    const targetLevel = currentLevel + 1;
+
+    return classrooms.filter((c) => {
+      if (c.name.toLowerCase() === 'tagihan alumni') return false;
+      const cLevel = parseGradeLevel(c.level, c.name);
+      return cLevel === targetLevel;
+    });
+  }, [promotingStudent, classrooms]);
 
   // Handler Tahun Ajaran Change
   const handleAcademicYearChange = (yearId: string) => {
@@ -328,6 +362,71 @@ export default function MasterSiswaPage() {
     }
   };
 
+  const handleOpenPromote = (student: Student) => {
+    setPromotingStudent(student);
+    const currentLevel = parseGradeLevel(student.classroomLevel, student.classroomName);
+    const targetLevel = currentLevel ? currentLevel + 1 : null;
+    const matching = classrooms.filter((c) => {
+      if (c.name.toLowerCase() === 'tagihan alumni') return false;
+      return parseGradeLevel(c.level, c.name) === targetLevel;
+    });
+    setTargetClassroomId(matching[0]?.id?.toString() || '');
+    setIsPromoteModalOpen(true);
+  };
+
+  const handleConfirmPromote = async () => {
+    if (!promotingStudent || !targetClassroomId) return;
+    setIsSubmitting(true);
+    try {
+      const targetClass = classrooms.find((c) => c.id.toString() === targetClassroomId.toString());
+      if (!targetClass) return;
+
+      const currentLevel = parseGradeLevel(promotingStudent.classroomLevel, promotingStudent.classroomName);
+      const targetLevel = parseGradeLevel(targetClass.level, targetClass.name);
+
+      if (!currentLevel || !targetLevel || targetLevel !== currentLevel + 1) {
+        showUpdateAlert('Kenaikan kelas gagal: Kelas tidak boleh melompat tingkat.');
+        return;
+      }
+
+      await apiClient.put(`/students/${promotingStudent.id}`, {
+        nis: promotingStudent.nis,
+        nisn: promotingStudent.nisn,
+        name: promotingStudent.name,
+        classroomId: targetClass.id,
+        entryYear: promotingStudent.entryYear,
+        phoneNumber: promotingStudent.phoneNumber,
+        address: promotingStudent.address,
+        isActive: promotingStudent.isActive,
+      });
+
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === promotingStudent.id
+            ? {
+                ...s,
+                classroomId: targetClass.id,
+                classroomName: targetClass.name,
+                classroomLevel: targetClass.level,
+                academicYearId: targetClass.academicYearId,
+                academicYearName: targetClass.academicYearName,
+              }
+            : s
+        )
+      );
+
+      showUpdateAlert(
+        `Siswa ${promotingStudent.name} berhasil dinaikkan ke kelas ${targetClass.name} beserta seluruh tagihannya.`
+      );
+      setIsPromoteModalOpen(false);
+      fetchStudents();
+    } catch {
+      // Handled
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const columns: Column<Student>[] = [
     {
       key: 'nis',
@@ -415,6 +514,19 @@ export default function MasterSiswaPage() {
                 <span>Lulus</span>
               </Button>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenPromote(row);
+              }}
+              className="px-2 py-1 h-7 bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200 text-xs flex items-center gap-1 font-medium"
+              title="Naikkan Kelas Siswa"
+            >
+              <TrendingUp className="w-3.5 h-3.5 text-blue-600" />
+              <span>Naik Kelas</span>
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -735,6 +847,93 @@ export default function MasterSiswaPage() {
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               Ya, Siswa Benar Lulus
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Naikkan Kelas Siswa */}
+      <Modal
+        isOpen={isPromoteModalOpen}
+        onClose={() => setIsPromoteModalOpen(false)}
+        title="Kenaikan Kelas Siswa"
+        description="Pindahkan siswa ke tingkat kelas berikutnya beserta tagihannya."
+      >
+        <div className="space-y-4">
+          <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3">
+            <TrendingUp className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+            <div className="text-xs text-blue-950 space-y-1">
+              <p className="font-semibold text-sm text-blue-900">{promotingStudent?.name}</p>
+              <p className="font-mono text-blue-800">
+                NIS: {promotingStudent?.nis} {promotingStudent?.nisn ? `| NISN: ${promotingStudent.nisn}` : ''}
+              </p>
+              <p className="text-blue-700">
+                Kelas Saat Ini: <strong>{promotingStudent?.classroomName || 'Belum diatur'}</strong> (Tingkat{' '}
+                {parseGradeLevel(promotingStudent?.classroomLevel, promotingStudent?.classroomName) || '-'})
+              </p>
+            </div>
+          </div>
+
+          {parseGradeLevel(promotingStudent?.classroomLevel, promotingStudent?.classroomName) === 12 ? (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 leading-relaxed">
+              Siswa ini sudah berada di tingkat akhir (Kelas XII). Siswa tingkat akhir tidak dapat dinaikkan kelas lagi.
+              Silakan gunakan tombol <strong>Lulus</strong> untuk meluluskan siswa ke Data Alumni.
+            </div>
+          ) : availableTargetClassrooms.length === 0 ? (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 leading-relaxed">
+              Tidak ditemukan kelas tujuan untuk tingkat{' '}
+              {(parseGradeLevel(promotingStudent?.classroomLevel, promotingStudent?.classroomName) || 0) + 1}. Silakan
+              tambahkan kelas tingkat tersebut di sub menu Kelas terlebih dahulu.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="text-xs text-zinc-600 leading-relaxed">
+                Pilih kelas tujuan untuk tingkat{' '}
+                <strong className="text-blue-700">
+                  {(parseGradeLevel(promotingStudent?.classroomLevel, promotingStudent?.classroomName) || 0) + 1}
+                </strong>
+                . Sesuai aturan, kelas tidak boleh melompat tingkat. Seluruh tagihan siswa akan tetap tersinkron dan
+                mengikuti kelas baru.
+              </div>
+
+              <SelectField
+                label="Pilih Kelas Tujuan"
+                options={availableTargetClassrooms.map((c) => ({
+                  label: `Kelas ${c.name} (Tingkat ${c.level})${c.academicYearName ? ` - ${c.academicYearName}` : ''}`,
+                  value: c.id.toString(),
+                }))}
+                value={targetClassroomId}
+                onChange={(e) => setTargetClassroomId(e.target.value)}
+                required
+              />
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsPromoteModalOpen(false)}
+              disabled={isSubmitting}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              isLoading={isSubmitting}
+              onClick={handleConfirmPromote}
+              disabled={
+                isSubmitting ||
+                !targetClassroomId ||
+                availableTargetClassrooms.length === 0 ||
+                parseGradeLevel(promotingStudent?.classroomLevel, promotingStudent?.classroomName) === 12
+              }
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Konfirmasi Naik Kelas
             </Button>
           </div>
         </div>
