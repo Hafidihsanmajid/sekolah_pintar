@@ -45,6 +45,11 @@ class MasterDataSeeder extends Seeder
             ['level' => '12']
         );
 
+        Classroom::firstOrCreate(
+            ['name' => 'Tagihan Alumni', 'academic_year_id' => $academicYear2025->id],
+            ['level' => 'Alumni']
+        );
+
         // 3. Kategori Biaya
         FeeCategory::firstOrCreate(
             ['name' => 'SPP Bulanan'],

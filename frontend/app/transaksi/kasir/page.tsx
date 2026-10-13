@@ -102,7 +102,11 @@ export default function KasirPage() {
   // Filtered Classrooms by selected Academic Year
   const filteredClassrooms = useMemo(() => {
     if (!selectedAcademicYearId) return classrooms;
-    return classrooms.filter((c) => c.academicYearId?.toString() === selectedAcademicYearId);
+    return classrooms.filter(
+      (c) =>
+        c.academicYearId?.toString() === selectedAcademicYearId ||
+        c.name.toLowerCase() === 'tagihan alumni'
+    );
   }, [classrooms, selectedAcademicYearId]);
 
   // Handler Tahun Ajaran Change
@@ -110,7 +114,11 @@ export default function KasirPage() {
     setSelectedAcademicYearId(yearId);
     if (yearId && selectedClassroomId) {
       const currentClassroom = classrooms.find((c) => c.id.toString() === selectedClassroomId);
-      if (currentClassroom && currentClassroom.academicYearId?.toString() !== yearId) {
+      if (
+        currentClassroom &&
+        currentClassroom.name.toLowerCase() !== 'tagihan alumni' &&
+        currentClassroom.academicYearId?.toString() !== yearId
+      ) {
         setSelectedClassroomId('');
       }
     }
@@ -138,7 +146,9 @@ export default function KasirPage() {
       if (classroomId) {
         params.classroomId = classroomId;
       }
-      if (academicYearId) {
+      const isAlumniClass =
+        classrooms.find((c) => c.id.toString() === classroomId)?.name.toLowerCase() === 'tagihan alumni';
+      if (academicYearId && !isAlumniClass) {
         params.academicYearId = academicYearId;
       }
 
@@ -151,7 +161,7 @@ export default function KasirPage() {
     } finally {
       setIsLoadingStudents(false);
     }
-  }, []);
+  }, [classrooms]);
 
   useEffect(() => {
     fetchClassStudents(selectedClassroomId, selectedAcademicYearId);
@@ -365,7 +375,10 @@ export default function KasirPage() {
                     options={[
                       { label: 'Semua Kelas', value: '' },
                       ...filteredClassrooms.map((c) => ({
-                        label: `Kelas ${c.name} (${c.level})`,
+                        label:
+                          c.name.toLowerCase() === 'tagihan alumni'
+                            ? 'Tagihan Alumni (Khusus Alumni)'
+                            : `Kelas ${c.name} (${c.level})`,
                         value: c.id.toString(),
                       })),
                     ]}
@@ -449,8 +462,21 @@ export default function KasirPage() {
                               {s.classroomName || '-'}
                             </td>
                             <td className="py-2.5 px-3 text-center">
-                              <Badge variant={s.isActive ? 'paid' : 'neutral'} size="sm">
-                                {s.isActive ? 'Aktif' : 'Non-Aktif'}
+                              <Badge
+                                variant={
+                                  s.classroomName?.toLowerCase() === 'tagihan alumni'
+                                    ? 'outline'
+                                    : s.isActive
+                                    ? 'paid'
+                                    : 'neutral'
+                                }
+                                size="sm"
+                              >
+                                {s.classroomName?.toLowerCase() === 'tagihan alumni'
+                                  ? 'Alumni'
+                                  : s.isActive
+                                  ? 'Aktif'
+                                  : 'Non-Aktif'}
                               </Badge>
                             </td>
                             <td className="py-2.5 px-3 text-right">
