@@ -22,6 +22,7 @@ class RoleAndUserSeeder extends Seeder
         $superAdminRole = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
         $adminTuRole = Role::firstOrCreate(['name' => 'admin_tu', 'guard_name' => 'web']);
         $kepalaSekolahRole = Role::firstOrCreate(['name' => 'kepala_sekolah', 'guard_name' => 'web']);
+        $keuanganRole = Role::firstOrCreate(['name' => 'keuangan', 'guard_name' => 'web']);
 
         // 2. Buat Default Users
         $superAdmin = User::firstOrCreate(
@@ -50,5 +51,14 @@ class RoleAndUserSeeder extends Seeder
             ]
         );
         $kepalaSekolah->assignRole($kepalaSekolahRole);
+
+        $keuangan = User::firstOrCreate(
+            ['email' => 'keuangan@sekolah.sch.id'],
+            [
+                'name' => 'Staf Keuangan',
+                'password' => Hash::make('password123'),
+            ]
+        );
+        $keuangan->assignRole($keuanganRole);
     }
 }

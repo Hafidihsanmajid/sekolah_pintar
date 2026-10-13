@@ -23,7 +23,7 @@ export interface UserProfile {
   id: number;
   name: string;
   email: string;
-  role: 'super_admin' | 'admin_tu' | 'kepala_sekolah';
+  role: 'super_admin' | 'admin_tu' | 'kepala_sekolah' | 'keuangan' | string;
   createdAt?: string;
 }
 

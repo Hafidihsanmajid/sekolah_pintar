@@ -42,7 +42,7 @@ Route::prefix('auth')->group(function () {
 });
 
 // Protected Core Application Routes
-Route::middleware(['auth:sanctum', 'role:super_admin|admin_tu|kepala_sekolah'])->group(function () {
+Route::middleware(['auth:sanctum', 'role:super_admin|admin_tu|kepala_sekolah|keuangan'])->group(function () {
     // 0. Dashboard Summary
     Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
 

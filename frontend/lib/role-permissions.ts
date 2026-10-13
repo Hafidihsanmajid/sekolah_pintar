@@ -64,6 +64,13 @@ export const DEFAULT_ROLE_DEFINITIONS: Record<string, RoleInfo> = {
     badgeVariant: 'neutral',
     isSystem: true,
   },
+  keuangan: {
+    key: 'keuangan',
+    label: 'Staf Keuangan',
+    description: 'Pengelola administrasi kas masuk, kas keluar, dan laporan keuangan sekolah.',
+    badgeVariant: 'paid',
+    isSystem: true,
+  },
 };
 
 export const ROLE_DEFINITIONS = DEFAULT_ROLE_DEFINITIONS;
@@ -72,6 +79,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   super_admin: ['master_data', 'transaksi', 'keuangan', 'pengaturan'],
   admin_tu: ['master_data', 'transaksi'], // Contoh: role admin tata usaha hanya bisa akses menu master data dan transaksi pembayaran
   kepala_sekolah: ['transaksi', 'keuangan'],
+  keuangan: ['keuangan'],
 };
 
 export const STORAGE_ROLES_KEY = 'sekolah_pintar_roles';
