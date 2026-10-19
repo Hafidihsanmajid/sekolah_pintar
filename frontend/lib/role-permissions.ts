@@ -35,6 +35,12 @@ export const SYSTEM_MENUS: MenuConfig[] = [
     subMenus: ['Input Uang Masuk', 'Input Uang Keluar', 'Laporan Uang Masuk', 'Laporan Uang Keluar'],
   },
   {
+    key: 'absensi',
+    label: 'Absensi',
+    description: 'Akses data siswa absensi, konfigurasi waktu kehadiran, dan riwayat absensi harian',
+    subMenus: ['Data Siswa', 'Konfigurasi Absensi', 'Riwayat Absensi'],
+  },
+  {
     key: 'pengaturan',
     label: 'Pengaturan Sistem',
     description: 'Akses konfigurasi profil sekolah dan utilitas identitas instansi',
@@ -76,8 +82,8 @@ export const DEFAULT_ROLE_DEFINITIONS: Record<string, RoleInfo> = {
 export const ROLE_DEFINITIONS = DEFAULT_ROLE_DEFINITIONS;
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
-  super_admin: ['master_data', 'transaksi', 'keuangan', 'pengaturan'],
-  admin_tu: ['master_data', 'transaksi'], // Contoh: role admin tata usaha hanya bisa akses menu master data dan transaksi pembayaran
+  super_admin: ['master_data', 'transaksi', 'keuangan', 'absensi', 'pengaturan'],
+  admin_tu: ['master_data', 'transaksi', 'absensi'], // Akses master data, transaksi, dan absensi
   kepala_sekolah: ['transaksi', 'keuangan'],
   keuangan: ['keuangan'],
 };
