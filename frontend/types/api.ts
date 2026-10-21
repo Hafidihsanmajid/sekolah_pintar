@@ -294,3 +294,51 @@ export interface IncomeItem {
   notes?: string;
   createdAt?: string;
 }
+
+export interface AttendanceSetting {
+  id: number;
+  entryTime: string;
+  exitTime: string;
+  lateTolerance: number;
+  updatedAt?: string | null;
+}
+
+export type AttendanceStatus = 'hadir' | 'sakit' | 'izin' | 'alpa' | 'terlambat';
+
+export interface AttendanceRecord {
+  id: number;
+  studentId: number;
+  studentName?: string;
+  studentNis?: string;
+  studentNisn?: string;
+  classroomId?: number;
+  classroomName?: string;
+  classroomLevel?: string;
+  date: string;
+  status: AttendanceStatus;
+  notes?: string | null;
+  checkInTime?: string;
+  createdAt?: string;
+  updatedAt?: string | null;
+}
+
+export interface KioskAttendancePayload {
+  nis: string;
+}
+
+export type KioskAttendanceResponse = AttendanceRecord;
+
+export interface AttendanceSummary {
+  total: number;
+  hadir: number;
+  terlambat: number;
+  sakit: number;
+  izin: number;
+  alpa: number;
+}
+
+export interface AttendanceListResponse {
+  items: AttendanceRecord[];
+  summary: AttendanceSummary;
+  pagination: PaginationMeta;
+}

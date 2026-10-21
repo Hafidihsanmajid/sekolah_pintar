@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Api\AcademicYearController;
+use App\Http\Controllers\Api\AttendanceController;
+use App\Http\Controllers\Api\AttendanceSettingController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BillController;
 use App\Http\Controllers\Api\ClassroomController;
@@ -41,6 +43,10 @@ Route::prefix('auth')->group(function () {
     });
 });
 
+// Kiosk Presensi Mandiri (Self-Service Siswa)
+Route::post('/attendances/kiosk', [AttendanceController::class, 'kiosk']);
+Route::post('/v1/attendances/kiosk', [AttendanceController::class, 'kiosk']);
+
 // Protected Core Application Routes
 Route::middleware(['auth:sanctum', 'role:super_admin|admin_tu|kepala_sekolah|keuangan'])->group(function () {
     // 0. Dashboard Summary
@@ -79,8 +85,22 @@ Route::middleware(['auth:sanctum', 'role:super_admin|admin_tu|kepala_sekolah|keu
     Route::get('/settings/profile', [SettingController::class, 'getProfile']);
     Route::post('/settings/change-password', [SettingController::class, 'changePassword']);
 
+    // 4.1. Konfigurasi Absensi & Data Siswa Absensi (Read)
+    Route::get('/attendance-settings', [AttendanceSettingController::class, 'show']);
+    Route::get('/v1/attendance-settings', [AttendanceSettingController::class, 'show']);
+    Route::get('/attendances/students', [AttendanceController::class, 'students']);
+    Route::get('/v1/attendances/students', [AttendanceController::class, 'students']);
+    Route::get('/attendances', [AttendanceController::class, 'index']);
+    Route::get('/v1/attendances', [AttendanceController::class, 'index']);
+
     // 5. Mutasi Master Data (Super Admin & Admin TU)
     Route::middleware('role:super_admin|admin_tu')->group(function () {
+        // Konfigurasi Absensi (Update)
+        Route::put('/attendance-settings', [AttendanceSettingController::class, 'update']);
+        Route::put('/v1/attendance-settings', [AttendanceSettingController::class, 'update']);
+        // Input Absensi Massal
+        Route::post('/attendances/batch', [AttendanceController::class, 'batch']);
+        Route::post('/v1/attendances/batch', [AttendanceController::class, 'batch']);
         Route::post('/academic-years', [AcademicYearController::class, 'store']);
         Route::put('/academic-years/{academicYear}', [AcademicYearController::class, 'update']);
         Route::delete('/academic-years/{academicYear}', [AcademicYearController::class, 'destroy']);

@@ -88,7 +88,31 @@ class StudentController extends Controller
 
     public function destroy(Student $student): JsonResponse
     {
-        $student->delete();
+        if ($student->attendances()->exists()) {
+            return $this->errorResponse(
+                'Tidak dapat menghapus siswa yang memiliki riwayat presensi.',
+                [],
+                422
+            );
+        }
+
+        if ($student->bills()->exists()) {
+            return $this->errorResponse(
+                'Tidak dapat menghapus siswa yang memiliki data tagihan.',
+                [],
+                422
+            );
+        }
+
+        try {
+            $student->delete();
+        } catch (\Illuminate\Database\QueryException $e) {
+            return $this->errorResponse(
+                'Tidak dapat menghapus siswa karena data masih terhubung dengan catatan transaksi sistem.',
+                [],
+                422
+            );
+        }
 
         return $this->successResponse(null, 'Data siswa berhasil dihapus');
     }

@@ -20,6 +20,9 @@ import {
   Database,
   Wallet,
   PlusCircle,
+  CalendarCheck,
+  Clock,
+  ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -76,6 +79,16 @@ const navItems: NavItem[] = [
       { label: 'Input Uang Keluar', href: '/keuangan/input-uang-keluar', icon: PlusCircle },
       { label: 'Laporan Uang Masuk', href: '/laporan', icon: FileSpreadsheet },
       { label: 'Laporan Uang Keluar', href: '/keuangan/uang-keluar', icon: Receipt },
+    ],
+  },
+  {
+    label: 'Absensi',
+    icon: CalendarCheck,
+    permissionKey: 'absensi',
+    children: [
+      { label: 'Data Siswa', href: '/absensi/data-siswa', icon: Users },
+      { label: 'Konfigurasi Absensi', href: '/absensi/konfigurasi', icon: Clock },
+      { label: 'Riwayat Absensi', href: '/absensi/riwayat', icon: ClipboardList },
     ],
   },
   {

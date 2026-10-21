@@ -133,3 +133,57 @@ Dokumen ini berisi aturan baku rekayasa perangkat lunak untuk proyek **Sistem ER
 2. **Client Components Seperlunya:** Deklarasikan `'use client'` hanya pada komponen interaktif yang membutuhkan state (`useState`), effect (`useEffect`), event listener (tombol klik, modal toggle), atau hooks browser.
 3. **Strict TypeScript:** Dilarang menggunakan tipe `any`. Seluruh payload API, properti props, dan response harus didefinisikan interface/type-nya secara eksplisit di `types/`.
 4. **Kecepatan Transaksi:** Form kasir pembayaran harus mendukung navigasi keyboard (Enter / Tab) agar proses pembayaran siswa selesai di bawah 1 menit sesuai PRD.
+
+---
+
+## 7. Aturan Khusus Siklus Siswa & Tagihan Alumni
+
+### 7.1. Integritas Tagihan Siswa Lulus (Alumni)
+- **DILARANG MENGHAPUS TAGIHAN:** Ketika siswa dinyatakan lulus, seluruh data tagihan yang belum lunas (`unpaid` / `partially_paid`) **DILARANG DIHAPUS**.
+- Siswa yang lulus dialihkan kelasnya ke kelas khusus `Tagihan Alumni` (`level: 'Alumni'`), dan data siswa aktif disaring agar hanya tampil di sub menu Data Alumni.
+- Pada modul kasir, kelas `Tagihan Alumni` wajib selalu dapat diakses untuk penagihan piutang tanpa terikat batasan filter tahun ajaran aktif.
+
+### 7.2. Aturan Kenaikan Kelas (Class Promotion)
+- **Larangan Lompat Tingkat:** Siswa hanya diperbolehkan naik tepat 1 tingkat di atas tingkat kelas saat ini (misal: tingkat 10 hanya boleh ke tingkat 11; tingkat 11 hanya boleh ke tingkat 12). Kenaikan melompat (misal: tingkat 10 langsung ke tingkat 12) wajib diblokir pada tingkat antarmuka dan validasi.
+- **Siswa Tingkat Akhir:** Siswa tingkat 12/XII dilarang memiliki tombol naik kelas; siswa tingkat 12 hanya memiliki opsi fitur kelulusan (**Lulus**).
+- Seluruh tagihan aktif siswa wajib tetap melekat pada profil siswa bersangkutan saat berpindah ke kelas baru.
+
+---
+
+## 8. Aturan Modul Keuangan & Arus Kas Non-Kasir
+
+### 8.1. Konvensi Penomoran Invoice Kas
+- **Uang Masuk Non-Kasir (Penerimaan BOS/Hibah):** Wajib menggunakan prefix dan format penanggalan:
+  `IN/YYYYMMDD/XXXX` (Contoh: `IN/20261019/0001`).
+- **Uang Keluar / Beban Operasional:** Wajib menggunakan prefix dan format penanggalan:
+  `OUT/YYYYMMDD/XXXX` (Contoh: `OUT/20261019/0001`).
+- **Transaksi Kasir Pembayaran Siswa:** Tetap menggunakan format standar:
+  `INV/YYYYMMDD/XXXX`.
+
+### 8.2. Rekonsiliasi & Pelaporan Terpadu
+- Laporan arus kas wajib memisahkan penerimaan kasir siswa dengan penerimaan kas non-kasir, namun tetap menyediakan ringkasan grand total yang konsisten.
+- Metode/saluran pembayaran wajib dibedakan antara kas fisik (tunai kasir TU) dan rekening transfer bank agar rekonsiliasi mutasi akurat.
+
+---
+
+## 9. Aturan Perluasan Role-Based Access Control (RBAC)
+
+1. **Role Baru:** Setiap penambahan role baru (misal: `keuangan`) wajib didaftarkan pada:
+   - Seeder backend (`RoleAndUserSeeder.php`).
+   - Route middleware grup `api.php`.
+   - Kamus role frontend (`lib/role-permissions.ts`).
+   - Interface TypeScript (`types/api.ts`).
+2. **Sinkronisasi Navigasi:** Pengubahan hak akses role dinamis di antarmuka harus memicu event `role-permissions-updated` dan `roles-updated` agar navigasi sidebar langsung terbarui tanpa perlu refresh manual.
+
+---
+
+## 10. Aturan Modul Presensi Siswa (Absensi)
+
+### 10.1. Integritas Data & Proteksi Hapus Siswa
+- **Larangan Hapus Siswa Berpresensi:** Tabel `attendances` menggunakan relasi foreign key `student_id` dengan opsi `onDelete('restrict')`. Endpoint penghapusan siswa (`DELETE /api/students/{id}`) wajib memvalidasi ketiadaan riwayat presensi siswa terlebih dahulu dan me-return status `422 Unprocessable Entity` jika riwayat presensi ada.
+- **Pengecualian Kelas Tagihan Alumni:** Seluruh query data siswa untuk absensi wajib mengecualikan kelas `Tagihan Alumni` (`LOWER(name) != 'tagihan alumni'`).
+- **Upsert Presensi Harian:** Pencatatan presensi massal (`POST /api/v1/attendances/batch`) wajib bersifat idempotens/upsert berdasarkan pasangan `[student_id, date]`. Jika entri sudah ada pada tanggal bersangkutan, sistem memperbarui status dan catatan siswa tanpa membuat duplikat baris.
+
+### 10.2. Hak Akses Modul Presensi (RBAC)
+- **Akses Tampil Menu:** Hanya role yang memiliki izin `absensi` (`super_admin`, `admin_tu`, atau role kustom dengan hak akses absensi) yang menampilkan menu Presensi di antarmuka sidebar.
+- **Mutasi Parameter & Presensi Massal:** Operasi perubahan konfigurasi waktu (`PUT /attendance-settings`) dan input absensi massal (`POST /attendances/batch`) diproteksi ketat dengan middleware `role:super_admin|admin_tu`. Role pimpinan (seperti `kepala_sekolah`) hanya memiliki hak pantau/baca (read-only) pada log rekapitulasi presensi.
