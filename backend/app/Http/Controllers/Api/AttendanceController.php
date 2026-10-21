@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\BatchAttendanceRequest;
+use App\Http\Requests\KioskAttendanceRequest;
 use App\Http\Resources\AttendanceResource;
 use App\Http\Resources\StudentResource;
 use App\Models\Attendance;
+use App\Models\AttendanceSetting;
 use App\Models\Student;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -162,5 +164,97 @@ class AttendanceController extends Controller
             'savedCount' => $savedCount,
             'date' => $date,
         ], "Berhasil mencatat absensi {$savedCount} siswa untuk tanggal {$date}");
+    }
+
+    /**
+     * Endpoint mandiri Kiosk untuk pencatatan kehadiran menggunakan NIS
+     */
+    public function kiosk(KioskAttendanceRequest $request): JsonResponse
+    {
+        $nis = trim($request->validated()['nis']);
+
+        // Cari siswa berdasarkan NIS beserta relasi kelas
+        $student = Student::with(['classroom.academicYear'])
+            ->where('nis', $nis)
+            ->first();
+
+        if (!$student) {
+            return $this->errorResponse("Siswa dengan NIS {$nis} tidak ditemukan di sistem", [
+                'nis' => ["NIS {$nis} tidak terdaftar"],
+            ], 404);
+        }
+
+        if (!$student->is_active) {
+            return $this->errorResponse("Siswa {$student->name} (NIS: {$nis}) berstatus tidak aktif", [
+                'nis' => ['Siswa berstatus tidak aktif'],
+            ], 422);
+        }
+
+        if (strtolower($student->classroom?->name ?? '') === 'tagihan alumni') {
+            return $this->errorResponse("Siswa {$student->name} telah dinyatakan lulus (Alumni)", [
+                'nis' => ['Siswa telah berstatus alumni'],
+            ], 422);
+        }
+
+        $timezone = config('app.timezone') ?: 'Asia/Jakarta';
+        $now = Carbon::now($timezone);
+        $today = $now->toDateString();
+
+        // Cek apakah siswa sudah melakukan absensi hari ini
+        $existing = Attendance::where('student_id', $student->id)
+            ->whereDate('date', $today)
+            ->first();
+
+        if ($existing) {
+            $existing->setRelation('student', $student);
+            $statusLabel = ucfirst($existing->status);
+            $timeStr = $existing->created_at ? $existing->created_at->setTimezone($timezone)->format('H:i') : '';
+            $timeInfo = $timeStr ? " pada pukul {$timeStr} WIB" : '';
+
+            return $this->errorResponse(
+                "Siswa {$student->name} sudah melakukan absensi hari ini{$timeInfo} (Status: {$statusLabel})",
+                [
+                    'alreadyRecorded' => true,
+                    'attendance' => new AttendanceResource($existing),
+                ],
+                422
+            );
+        }
+
+        // Ambil konfigurasi absensi aktif
+        $setting = AttendanceSetting::first();
+        $entryTimeStr = $setting?->entry_time ? substr((string) $setting->entry_time, 0, 5) : '07:00';
+        $lateTolerance = (int) ($setting?->late_tolerance ?? 15);
+
+        // Hitung batas toleransi waktu keterlambatan
+        $entryCarbon = Carbon::createFromTimeString($entryTimeStr, $timezone);
+        $cutoffCarbon = $entryCarbon->copy()->addMinutes($lateTolerance);
+        $currentTimeCarbon = Carbon::createFromTimeString($now->format('H:i:s'), $timezone);
+
+        if ($currentTimeCarbon->greaterThan($cutoffCarbon)) {
+            $diffMinutes = max(1, (int) $cutoffCarbon->diffInMinutes($currentTimeCarbon));
+            $status = 'terlambat';
+            $notes = "Absen mandiri kiosk (Terlambat {$diffMinutes} menit)";
+        } else {
+            $status = 'hadir';
+            $notes = 'Absen mandiri kiosk (Tepat waktu)';
+        }
+
+        $attendance = Attendance::create([
+            'student_id' => $student->id,
+            'date' => $today,
+            'status' => $status,
+            'notes' => $notes,
+        ]);
+
+        $attendance->setRelation('student', $student);
+
+        $statusTitle = $status === 'hadir' ? 'Hadir' : 'Terlambat';
+        $formattedTime = $now->format('H:i');
+
+        return $this->successResponse(
+            new AttendanceResource($attendance),
+            "Absensi berhasil: {$student->name} ({$statusTitle}) pada {$formattedTime} WIB"
+        );
     }
 }

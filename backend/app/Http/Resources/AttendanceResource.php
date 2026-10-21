@@ -26,6 +26,7 @@ class AttendanceResource extends JsonResource
             'date' => $this->date instanceof \DateTimeInterface ? $this->date->format('Y-m-d') : (string) $this->date,
             'status' => $this->status,
             'notes' => $this->notes,
+            'checkInTime' => $this->created_at?->format('H:i'),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

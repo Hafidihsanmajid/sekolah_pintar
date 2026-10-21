@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\AcademicYear;
 use App\Models\Attendance;
+use App\Models\AttendanceSetting;
 use App\Models\Classroom;
 use App\Models\Student;
 use App\Models\User;
+use Carbon\Carbon;
 use Database\Seeders\MasterDataSeeder;
 use Database\Seeders\RoleAndUserSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -219,5 +221,120 @@ class AttendanceTest extends TestCase
         $this->assertDatabaseHas('students', [
             'id' => $this->student1->id,
         ]);
+    }
+
+    public function test_kiosk_attendance_records_present_on_time(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-20 07:10:00', 'Asia/Jakarta'));
+
+        $response = $this->postJson('/api/v1/attendances/kiosk', [
+            'nis' => $this->student1->nis,
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.studentNis', $this->student1->nis)
+            ->assertJsonPath('data.status', 'hadir')
+            ->assertJsonPath('data.date', '2026-10-20');
+
+        $this->assertDatabaseHas('attendances', [
+            'student_id' => $this->student1->id,
+            'date' => '2026-10-20',
+            'status' => 'hadir',
+        ]);
+
+        Carbon::setTestNow(null);
+    }
+
+    public function test_kiosk_attendance_records_late_when_past_cutoff(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-20 07:25:00', 'Asia/Jakarta'));
+
+        $response = $this->postJson('/api/v1/attendances/kiosk', [
+            'nis' => $this->student2->nis,
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.studentNis', $this->student2->nis)
+            ->assertJsonPath('data.status', 'terlambat');
+
+        $this->assertDatabaseHas('attendances', [
+            'student_id' => $this->student2->id,
+            'date' => '2026-10-20',
+            'status' => 'terlambat',
+        ]);
+
+        Carbon::setTestNow(null);
+    }
+
+    public function test_kiosk_attendance_rejects_duplicate_check_in_on_same_day(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-20 07:05:00', 'Asia/Jakarta'));
+
+        // Absen pertama kali berhasil
+        $firstResponse = $this->postJson('/api/v1/attendances/kiosk', [
+            'nis' => $this->student1->nis,
+        ]);
+        $firstResponse->assertStatus(200);
+
+        // Absen kedua kali di hari yang sama harus ditolak 422
+        $secondResponse = $this->postJson('/api/v1/attendances/kiosk', [
+            'nis' => $this->student1->nis,
+        ]);
+
+        $secondResponse->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('errors.alreadyRecorded', true);
+
+        Carbon::setTestNow(null);
+    }
+
+    public function test_kiosk_attendance_validates_required_nis(): void
+    {
+        $response = $this->postJson('/api/v1/attendances/kiosk', []);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonStructure(['errors' => ['nis']]);
+    }
+
+    public function test_kiosk_attendance_rejects_non_existent_nis(): void
+    {
+        $response = $this->postJson('/api/v1/attendances/kiosk', [
+            'nis' => 'NIS_TIDAK_ADA_99999',
+        ]);
+
+        $response->assertStatus(404)
+            ->assertJsonPath('success', false);
+    }
+
+    public function test_kiosk_attendance_rejects_inactive_student(): void
+    {
+        $this->student1->update(['is_active' => false]);
+
+        $response = $this->postJson('/api/v1/attendances/kiosk', [
+            'nis' => $this->student1->nis,
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('success', false);
+    }
+
+    public function test_kiosk_attendance_rejects_alumni_student(): void
+    {
+        $alumniClass = Classroom::create([
+            'academic_year_id' => Classroom::first()->academic_year_id,
+            'name' => 'Tagihan Alumni',
+            'level' => 'Alumni',
+        ]);
+        $this->student1->update(['classroom_id' => $alumniClass->id]);
+
+        $response = $this->postJson('/api/v1/attendances/kiosk', [
+            'nis' => $this->student1->nis,
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('success', false);
     }
 }

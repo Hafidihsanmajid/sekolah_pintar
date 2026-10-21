@@ -16,7 +16,10 @@ export const axiosInstance: AxiosInstance = axios.create({
 // Request Interceptor: Otomatis sisipkan Bearer token jika tersedia
 axiosInstance.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = getAuthToken();
+    let token = getAuthToken();
+    if (!token && typeof process !== 'undefined' && process.env.NEXT_PUBLIC_KIOSK_TOKEN) {
+      token = process.env.NEXT_PUBLIC_KIOSK_TOKEN;
+    }
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -35,7 +38,11 @@ axiosInstance.interceptors.response.use(
   (error: AxiosError<ApiResponse>) => {
     if (error.response?.status === 401) {
       removeAuthToken();
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      if (
+        typeof window !== 'undefined' &&
+        !window.location.pathname.startsWith('/login') &&
+        !window.location.pathname.startsWith('/layar-absen')
+      ) {
         window.location.href = '/login';
       }
     }

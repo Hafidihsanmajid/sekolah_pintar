@@ -8,3 +8,4 @@ export * from './SlideOver';
 export * from './DataTable';
 export * from './Sidebar';
 export * from './TopNav';
+export * from './VirtualNumpad';

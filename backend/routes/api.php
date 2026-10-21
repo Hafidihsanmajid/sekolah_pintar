@@ -43,6 +43,10 @@ Route::prefix('auth')->group(function () {
     });
 });
 
+// Kiosk Presensi Mandiri (Self-Service Siswa)
+Route::post('/attendances/kiosk', [AttendanceController::class, 'kiosk']);
+Route::post('/v1/attendances/kiosk', [AttendanceController::class, 'kiosk']);
+
 // Protected Core Application Routes
 Route::middleware(['auth:sanctum', 'role:super_admin|admin_tu|kepala_sekolah|keuangan'])->group(function () {
     // 0. Dashboard Summary

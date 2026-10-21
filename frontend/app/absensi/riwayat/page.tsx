@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
 import { useAlert } from '@/context/alert-context';
 import { apiClient } from '@/lib/api-client';
@@ -23,6 +24,7 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
+  Maximize2,
   AlertCircle,
   Users,
   Search,
@@ -358,8 +360,20 @@ export default function AbsensiRiwayatPage() {
           </p>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex items-center p-1 bg-zinc-100 rounded-xl border border-zinc-200/80">
+        {/* Actions & Tab Switcher */}
+        <div className="flex items-center gap-2.5">
+          <Link
+            href="/layar-absen"
+            target="_blank"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200/90 rounded-xl shadow-xs transition-all"
+            title="Buka Layar Absen Mandiri Fullscreen di Tab Baru"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+            <span>Layar Kiosk</span>
+          </Link>
+
+          {/* Tab Switcher */}
+          <div className="flex items-center p-1 bg-zinc-100 rounded-xl border border-zinc-200/80">
           <button
             type="button"
             onClick={() => setActiveTab('log')}
@@ -389,6 +403,7 @@ export default function AbsensiRiwayatPage() {
           )}
         </div>
       </div>
+    </div>
 
       {/* ======================= TAB 1: LOG & REKAPITULASI ======================= */}
       {activeTab === 'log' && (

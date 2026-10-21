@@ -317,9 +317,16 @@ export interface AttendanceRecord {
   date: string;
   status: AttendanceStatus;
   notes?: string | null;
+  checkInTime?: string;
   createdAt?: string;
   updatedAt?: string | null;
 }
+
+export interface KioskAttendancePayload {
+  nis: string;
+}
+
+export type KioskAttendanceResponse = AttendanceRecord;
 
 export interface AttendanceSummary {
   total: number;
